@@ -31,6 +31,23 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
       let body: any = null;
       let isSingle = false;
 
+      const execute = async () => {
+        try {
+          const res = await fetch(url.toString(), { method, headers, body });
+          if (!res.ok) {
+            const text = await res.text();
+            return { data: null, error: { message: text } };
+          }
+          const result = await res.json();
+          if (isSingle && Array.isArray(result)) {
+            return { data: result.length > 0 ? result[0] : null, error: null };
+          }
+          return { data: result, error: null };
+        } catch (err: any) {
+          return { data: null, error: { message: err.message } };
+        }
+      };
+
       const builder = {
         select: (columns = '*') => {
           url.searchParams.set('select', columns);
@@ -53,28 +70,11 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
           body = JSON.stringify(data);
           return builder;
         },
-        then: (resolve: Function, reject: Function) => {
-          const execute = async () => {
-            try {
-              const res = await fetch(url.toString(), { method, headers, body });
-              if (!res.ok) {
-                const text = await res.text();
-                // Return null data instead of throwing to prevent app crash on simple fetch errors
-                return { data: null, error: { message: text } };
-              }
-              const result = await res.json();
-              if (isSingle && Array.isArray(result)) {
-                return { data: result.length > 0 ? result[0] : null, error: null };
-              }
-              return { data: result, error: null };
-            } catch (err: any) {
-              return { data: null, error: { message: err.message } };
-            }
-          };
-          return execute().then((res) => resolve(res)).catch((err) => reject(err));
+        then: (resolve?: (value: any) => void, reject?: (reason?: any) => void) => {
+          return execute().then(resolve, reject);
         }
       };
-      return builder;
+      return builder as any;
     }
   };
 };
