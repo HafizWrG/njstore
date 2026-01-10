@@ -252,7 +252,7 @@ Mohon segera diproses. Terima kasih!`;
     { name: 'WhatsApp', url: `https://wa.me/${ADMIN_CONTACT}`, icon: MessageCircle, color: 'text-green-500', bg: 'bg-green-500/10' },
     { name: 'Instagram', url: 'https://instagram.com/hfz. wrg', icon: Instagram, color: 'text-pink-500', bg: 'bg-pink-500/10' },
     { name: 'TikTok', url: 'https://tiktok.com/@minn_edzzt ', icon: Music, color: 'text-black dark:text-white', bg: 'bg-zinc-100 dark:bg-zinc-800' },
-    { name: 'Twitter/x', url: https://x.com/EdtzMinn', icon: Twitter, color: 'text-sky-500', bg: 'bg-sky-500/10' },
+    { name: 'Twitter/x', url: 'https://x.com/EdtzMinn', icon: Twitter, color: 'text-sky-500', bg: 'bg-sky-500/10' },
     { name: 'YouTube', url: 'https://youtube.com/@hafizwrg?si=IDswn54h7dbkCb4v', icon: Youtube, color: 'text-red-500', bg: 'bg-red-500/10' },
   ];
 
