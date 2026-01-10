@@ -7,7 +7,7 @@ import {
   Smartphone, Monitor, Gamepad, CreditCard, CheckCircle, 
   ChevronRight, ExternalLink, ShieldCheck, Zap,
   Instagram, Twitter, Youtube, MessageCircle, Music,
-  Sun, Moon, Image as ImageIcon
+  Sun, Moon
 } from 'lucide-react';
 
 // --- SUPABASE CONFIG ---
@@ -83,6 +83,18 @@ const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
 
 const ADMIN_CONTACT = "6281528483575"; 
 
+// --- HELPER FUNCTIONS (Moved outside component to avoid deps warning) ---
+const getIconByCategory = (category: string) => {
+  switch(category) {
+    case 'Streaming': return 'Monitor';
+    case 'Game': return 'Gamepad';
+    case 'Software': return 'Monitor';
+    case 'TopUp': return 'Zap'; 
+    case 'Akun': return 'Monitor';
+    default: return 'Smartphone';
+  }
+};
+
 export default function WuregStore() {
   // State Halaman & Navigasi
   const [activePage, setActivePage] = useState('home'); 
@@ -109,36 +121,37 @@ export default function WuregStore() {
   const [buyerForm, setBuyerForm] = useState({ name: '', phone: '', email: '', device_model: '' });
   const [selectedPayment, setSelectedPayment] = useState('');
 
-  // Hydration fix
+  // Hydration fix & Initial Fetch
   const [mounted, setMounted] = useState(false);
+  
   useEffect(() => {
     setMounted(true);
+    
+    const fetchProducts = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase.from('products').select('*');
+        
+        if (error) {
+          console.error("Supabase Error:", error);
+          return; 
+        }
+        
+        const mappedData = data?.map((item: any) => ({
+          ...item,
+          icon: item.icon || getIconByCategory(item.category)
+        })) || [];
+  
+        setProducts(mappedData);
+      } catch (error) {
+        console.error("Error fetching products:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
     fetchProducts();
   }, []);
-
-  // --- SUPABASE FETCHING FUNCTIONS ---
-  const fetchProducts = async () => {
-    setIsLoading(true);
-    try {
-      const { data, error } = await supabase.from('products').select('*');
-      
-      if (error) {
-        console.error("Supabase Error:", error);
-        return; 
-      }
-      
-      const mappedData = data?.map((item: any) => ({
-        ...item,
-        icon: item.icon || getIconByCategory(item.category)
-      })) || [];
-
-      setProducts(mappedData);
-    } catch (error) {
-      console.error("Error fetching products:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const fetchTransactions = async () => {
     try {
@@ -150,17 +163,6 @@ export default function WuregStore() {
       setTransactions(data || []);
     } catch (error) {
       console.error("Error fetching transactions:", error);
-    }
-  };
-
-  const getIconByCategory = (category: string) => {
-    switch(category) {
-      case 'Streaming': return 'Monitor';
-      case 'Game': return 'Gamepad';
-      case 'Software': return 'Monitor';
-      case 'TopUp': return 'Zap'; 
-      case 'Akun': return 'Monitor';
-      default: return 'Smartphone';
     }
   };
 
@@ -754,7 +756,7 @@ Mohon segera diproses. Terima kasih!`;
         </footer>
 
         {/* Global CSS for Animations */}
-        <style jsx global>{`
+        <style>{`
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
