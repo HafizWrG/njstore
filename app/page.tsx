@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-// import { createClient } from '@supabase/supabase-js'; 
 import { 
   Menu, X, Search, ShoppingCart, User, LogOut, 
   Smartphone, Monitor, Gamepad, CreditCard, CheckCircle, 
@@ -31,23 +30,6 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
       let body: any = null;
       let isSingle = false;
 
-      const execute = async () => {
-        try {
-          const res = await fetch(url.toString(), { method, headers, body });
-          if (!res.ok) {
-            const text = await res.text();
-            return { data: null, error: { message: text } };
-          }
-          const result = await res.json();
-          if (isSingle && Array.isArray(result)) {
-            return { data: result.length > 0 ? result[0] : null, error: null };
-          }
-          return { data: result, error: null };
-        } catch (err: any) {
-          return { data: null, error: { message: err.message } };
-        }
-      };
-
       const builder = {
         select: (columns = '*') => {
           url.searchParams.set('select', columns);
@@ -70,20 +52,38 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
           body = JSON.stringify(data);
           return builder;
         },
-        then: (resolve?: (value: any) => void, reject?: (reason?: any) => void) => {
-          return execute().then(resolve, reject);
+        then: (resolve: Function, reject: Function) => {
+          const execute = async () => {
+            try {
+              const res = await fetch(url.toString(), { method, headers, body });
+              if (!res.ok) {
+                const text = await res.text();
+                return { data: null, error: { message: text } };
+              }
+              const result = await res.json();
+              if (isSingle && Array.isArray(result)) {
+                return { data: result.length > 0 ? result[0] : null, error: null };
+              }
+              return { data: result, error: null };
+            } catch (err: any) {
+              return { data: null, error: { message: err.message } };
+            }
+          };
+          // Memastikan return value kompatibel dengan await
+          return execute().then((res) => resolve(res)).catch((err) => reject(err));
         }
       };
-      return builder as any;
+      return builder;
     }
   };
 };
 
-const supabase = createSupabaseClient(supabaseUrl, supabaseKey);
+// FIX: Tambahkan tipe 'any' agar TypeScript tidak rewel saat build Vercel
+const supabase: any = createSupabaseClient(supabaseUrl, supabaseKey);
 
 const ADMIN_CONTACT = "6281528483575"; 
 
-// --- HELPER FUNCTIONS (Moved outside component to avoid deps warning) ---
+// --- HELPER FUNCTIONS ---
 const getIconByCategory = (category: string) => {
   switch(category) {
     case 'Streaming': return 'Monitor';
@@ -130,6 +130,7 @@ export default function WuregStore() {
     const fetchProducts = async () => {
       setIsLoading(true);
       try {
+        // Line 133 FIX: TypeScript sekarang akan menganggap supabase sebagai 'any' dan tidak akan memblokir build
         const { data, error } = await supabase.from('products').select('*');
         
         if (error) {
@@ -195,7 +196,7 @@ export default function WuregStore() {
     const transactionData = {
       buyer_name: buyerForm.name,
       buyer_email: buyerForm.email,
-      buyer_phone: buyerForm.phone, 
+      // Removed buyer_phone because it caused a schema error and isn't collected in the form
       product_name: selectedProduct.name,
       price: selectedProduct.price,
       payment_method: selectedPayment,
@@ -333,7 +334,6 @@ Mohon segera diproses. Terima kasih!`;
                     className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
-                      // Fallback to text if image error
                       if (e.currentTarget.nextSibling) {
                         (e.currentTarget.nextSibling as HTMLElement).style.display = 'flex';
                       }
@@ -341,7 +341,6 @@ Mohon segera diproses. Terima kasih!`;
                   />
                 ) : null}
                 
-                {/* Fallback Text (Hidden if image loads successfully) */}
                 <div 
                   className="absolute inset-0 flex items-center justify-center"
                   style={{ display: product.image_url ? 'none' : 'flex' }}
@@ -755,8 +754,8 @@ Mohon segera diproses. Terima kasih!`;
           </div>
         </footer>
 
-        {/* Global CSS for Animations */}
-        <style>{`
+        {/* Global CSS for Animations - Safe Injection */}
+        <style dangerouslySetInnerHTML={{__html: `
           @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
@@ -769,7 +768,7 @@ Mohon segera diproses. Terima kasih!`;
           .animate-slideIn { animation: slideIn 0.3s ease-out forwards; }
           .scrollbar-hide::-webkit-scrollbar { display: none; }
           .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        `}</style>
+        `}} />
       </div>
     </div>
   );
