@@ -7,7 +7,8 @@ import {
   ChevronRight, ShieldCheck, Zap,
   Sun, Moon, Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
-  RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify
+  RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
+  ArrowUpRight
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE (Custom Client) ---
@@ -104,7 +105,7 @@ const PAYMENT_METHODS = [
 
 // --- HELPER COMPONENTS ---
 const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) => (
-  <div className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl animate-slideIn transition-all backdrop-blur-md border ${
+  <div className={`fixed top-4 right-4 z-[120] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl animate-slideIn transition-all backdrop-blur-md border ${
     type === 'success' ? 'bg-green-500/80 border-green-400 text-white' : 'bg-red-500/80 border-red-400 text-white'
   }`}>
     {type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
@@ -129,7 +130,7 @@ const ProductSkeleton = () => (
 export default function WuregStore() {
   const [activePage, setActivePage] = useState('home'); 
   const [isContactOpen, setIsContactOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // New state for mobile menu
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
 
@@ -156,6 +157,31 @@ export default function WuregStore() {
   const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
+
+  // --- THEME LOGIC ---
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+      setIsDarkMode(true);
+      document.documentElement.classList.add('dark');
+    } else {
+      setIsDarkMode(false);
+      document.documentElement.classList.remove('dark');
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    if (newMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  };
 
   const showToast = useCallback((msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -205,7 +231,6 @@ export default function WuregStore() {
 
   const handleUpdateStatus = async (transactionId: string, currentStatus: string) => {
     if (!supabase) return;
-    
     let newStatus = 'Pending';
     if (currentStatus === 'Pending') newStatus = 'Selesai';
     else if (currentStatus === 'Selesai') newStatus = 'Gagal';
@@ -329,7 +354,6 @@ export default function WuregStore() {
     } catch (err: any) { showToast("Error login", "error"); }
   };
 
-  // --- OPTIMIZATION START (Req #2): Memoize expensive calculations ---
   const { totalRevenue, successCount, topProducts, paymentCount } = useMemo(() => {
     const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
     const success = transactions.filter(t => t.status === 'Selesai').length;
@@ -347,7 +371,6 @@ export default function WuregStore() {
 
     return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount };
   }, [transactions]);
-  // --- OPTIMIZATION END ---
 
   const downloadCSV = () => {
     const headers = "ID,Date,Product,Price,Buyer Name,Buyer Contact,Device Model,Method,Status\n";
@@ -363,7 +386,6 @@ export default function WuregStore() {
     a.click();
   };
 
-  // --- OPTIMIZATION START (Req #2): Memoize product filtering ---
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -371,7 +393,6 @@ export default function WuregStore() {
       return matchSearch && matchCat;
     });
   }, [products, searchQuery, selectedCategory]);
-  // --- OPTIMIZATION END ---
 
   const handleMobileNav = (page: string) => {
     setActivePage(page);
@@ -383,18 +404,30 @@ export default function WuregStore() {
   if (!mounted) return null;
 
   return (
-    <div className={isDarkMode ? 'dark' : ''}>
+    <div>
       <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 transition-colors duration-500 ease-in-out">
-        {/* Subtle Background Gradients - Will-change for GPU optimization */}
+        {/* Subtle Background Gradients */}
         <div className="fixed inset-0 z-0 pointer-events-none">
-           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-[120px] animate-pulse will-change-transform"></div>
-           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-[120px] animate-pulse delay-1000 will-change-transform"></div>
+           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-blue-500/10 dark:bg-blue-600/5 rounded-full blur-[120px] animate-pulse will-change-transform"></div>
+           <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-purple-500/10 dark:bg-purple-600/5 rounded-full blur-[120px] animate-pulse delay-1000 will-change-transform"></div>
         </div>
         
         {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
+        {/* --- FLOATING THEME TOGGLE (NEW & STABLE) --- */}
+        <button 
+          onClick={toggleTheme} 
+          className="fixed bottom-6 right-6 z-[100] p-4 rounded-full bg-white dark:bg-zinc-800 text-slate-900 dark:text-white shadow-2xl shadow-black/20 border border-slate-100 dark:border-white/10 hover:scale-110 active:scale-90 transition-all duration-300 group"
+          title="Toggle Theme"
+        >
+           <div className="relative w-6 h-6">
+              <Sun size={24} className={`absolute top-0 left-0 transition-all duration-500 ${isDarkMode ? 'opacity-0 rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100 text-yellow-500'}`} />
+              <Moon size={24} className={`absolute top-0 left-0 transition-all duration-500 ${isDarkMode ? 'opacity-100 rotate-0 scale-100 text-indigo-400' : 'opacity-0 -rotate-90 scale-50'}`} />
+           </div>
+        </button>
+
         {/* --- NAVBAR --- */}
-        <nav className="fixed w-full z-50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/20 dark:border-white/5 shadow-sm transition-colors duration-300">
+        <nav className="fixed w-full z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-white/20 dark:border-white/5 shadow-sm transition-colors duration-300">
           <div className="container mx-auto px-4 h-20 flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { setActivePage('home'); setIsContactOpen(false); }}>
               <img 
@@ -414,23 +447,19 @@ export default function WuregStore() {
               
               <div className="h-6 w-px bg-slate-200 dark:bg-white/10 hidden md:block"></div>
               
-              <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2.5 rounded-full bg-slate-100 dark:bg-zinc-800/50 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all hover:rotate-12 active:scale-95 border border-transparent hover:border-slate-200 dark:hover:border-zinc-700">
-                {isDarkMode ? <Sun size={20} className="text-yellow-400" fill="currentColor"/> : <Moon size={20} className="text-indigo-500" fill="currentColor"/>}
-              </button>
-
               {/* Desktop Contact Button */}
               <button onClick={() => setIsContactOpen(true)} className="hidden md:flex items-center gap-2 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-white dark:to-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-full text-sm font-bold hover:shadow-lg hover:shadow-slate-500/20 hover:-translate-y-0.5 transition-all">
                  <Menu size={18}/> <span>Contact</span>
               </button>
 
-              {/* Mobile Hamburger (Req #1) */}
+              {/* Mobile Hamburger */}
               <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-slate-800 dark:text-white">
                 {isMobileMenuOpen ? <X size={24} /> : <AlignJustify size={24} />}
               </button>
             </div>
           </div>
 
-          {/* Mobile Dropdown Menu (Req #1) */}
+          {/* Mobile Dropdown Menu */}
           {isMobileMenuOpen && (
             <div className="md:hidden absolute top-20 left-0 w-full bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-white/10 p-4 flex flex-col gap-2 shadow-xl animate-slideDown origin-top">
                <button onClick={() => handleMobileNav('home')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
@@ -448,7 +477,7 @@ export default function WuregStore() {
 
         {/* --- ADMIN CONTACT POPUP --- */}
         {isContactOpen && (
-           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn" onClick={(e) => {if(e.target === e.currentTarget) setIsContactOpen(false)}}>
+           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn" onClick={(e) => {if(e.target === e.currentTarget) setIsContactOpen(false)}}>
               <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-[2rem] border border-white/20 dark:border-white/10 shadow-2xl overflow-hidden relative transform transition-all scale-100">
                  <button onClick={() => setIsContactOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-zinc-800 rounded-full hover:bg-slate-200 transition text-slate-500"><X size={20}/></button>
                  
@@ -481,110 +510,123 @@ export default function WuregStore() {
 
         <main className="container mx-auto px-4 pt-32 pb-20 min-h-screen relative z-10">
           {activePage === 'home' ? (
-            <div className="space-y-12 animate-fadeIn">
-               {/* --- HERO & SEARCH --- */}
-               <div className="text-center py-16 px-4 rounded-[3rem] border border-white/40 dark:border-white/5 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-sm shadow-xl shadow-indigo-500/5 relative overflow-hidden will-change-transform">
-                  {/* Decorative Elements */}
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
-                  
-                  <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6">
-                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 animate-gradient">Digital Needs.</span>
-                    <br/>
-                    <span className="text-slate-800 dark:text-white">Solved.</span>
-                  </h1>
-                  <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto mb-8 text-lg font-medium leading-relaxed">
-                    Platform top up game, software, dan akun premium termurah dengan proses kilat dan terpercaya.
-                  </p>
-                  
-                  <div className="max-w-lg mx-auto relative group">
-                    <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full blur opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
-                    <div className="relative flex items-center bg-white dark:bg-black rounded-full p-1.5 ring-1 ring-black/5 dark:ring-white/10 shadow-2xl">
-                        <div className="pl-4 text-slate-400"><Search size={22}/></div>
-                        <input 
-                          type="text" 
-                          placeholder="Cari item (e.g. Mobile Legends)..." 
-                          className="w-full bg-transparent border-none focus:ring-0 px-4 py-3 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 font-medium"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                        />
-                        <button className="bg-slate-900 dark:bg-white text-white dark:text-black p-3 rounded-full hover:scale-105 transition-transform">
-                          <ChevronRight size={20}/>
-                        </button>
-                    </div>
-                  </div>
-               </div>
+            <div className="space-y-16 animate-fadeIn">
+               {/* --- HERO SECTION REDESIGNED --- */}
+               <div className="relative rounded-[3rem] overflow-hidden border border-white/40 dark:border-white/5 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-md shadow-2xl shadow-indigo-500/10 p-10 md:p-20 text-center group">
+                   {/* Background Elements */}
+                   <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-blue-500/5 to-purple-500/5 group-hover:opacity-100 transition-opacity duration-1000"></div>
+                   
+                   <div className="relative z-10 max-w-4xl mx-auto">
+                      <span className="inline-block py-1 px-3 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-bold tracking-wider mb-6 border border-blue-200 dark:border-blue-800">
+                        OFFICIAL STORE
+                      </span>
+                      <h1 className="text-5xl md:text-8xl font-black tracking-tighter mb-8 leading-[0.9]">
+                        Level Up Your <br/>
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 animate-gradient">Digital Life.</span>
+                      </h1>
+                      <p className="text-slate-500 dark:text-slate-400 text-lg md:text-xl font-medium max-w-2xl mx-auto mb-10 leading-relaxed">
+                        Pusat top-up game, software original, dan akun premium. Harga termurah, proses otomatis, dan terpercaya sejak 2024.
+                      </p>
 
-               {/* Categories */}
-               <div className="flex gap-3 justify-center overflow-x-auto pb-6 scrollbar-hide">
-                  {['All', 'Game', 'Akun', 'Software'].map(cat => (
-                    <button 
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 border ${
-                        selectedCategory === cat 
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-transparent shadow-lg shadow-cyan-500/25 scale-105' 
-                        : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-300'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-               </div>
-
-               {isLoading ? (
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                   {[1,2,3,4].map(i => <ProductSkeleton key={i} />)}
-                 </div>
-               ) : filteredProducts.length === 0 ? (
-                 <div className="flex flex-col items-center justify-center py-20 opacity-60">
-                    <div className="bg-slate-100 dark:bg-white/5 p-4 rounded-full mb-4"><Search size={32}/></div>
-                    <p className="font-bold text-lg">Produk tidak ditemukan</p>
-                 </div>
-               ) : (
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 content-visibility-auto">
-                   {filteredProducts.map(product => (
-                     <div 
-                       key={product.id} 
-                       onClick={() => { setSelectedProduct(product); setCheckoutStep(1); }}
-                       className="group bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-white/40 dark:border-white/5 rounded-3xl p-4 cursor-pointer hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/10 dark:hover:shadow-cyan-900/20 transition-all duration-500 hover:-translate-y-2 relative overflow-hidden"
-                     >
-                         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/0 via-transparent to-purple-500/0 group-hover:from-cyan-500/5 group-hover:to-purple-500/5 transition-colors duration-500"></div>
-                         
-                         <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
-                            {product.image_url ? (
-                              <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"/>
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center text-5xl font-black text-slate-200 dark:text-zinc-800 group-hover:text-cyan-500/20 transition-colors">
-                                {product.name.slice(0,2).toUpperCase()}
-                              </div>
-                            )}
-                            <div className="absolute top-3 right-3 bg-white/80 dark:bg-black/60 backdrop-blur-md p-2 rounded-xl border border-white/20 shadow-sm">
-                               {product.icon === 'Gamepad' ? <Gamepad size={18} className="text-purple-500"/> :
-                                product.icon === 'Zap' ? <Zap size={18} className="text-yellow-500"/> :
-                                <Monitor size={18} className="text-blue-500"/>}
-                            </div>
+                      {/* Search Bar Modern */}
+                      <div className="max-w-xl mx-auto relative group/search">
+                         <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-500 rounded-full blur opacity-25 group-hover/search:opacity-50 transition duration-500"></div>
+                         <div className="relative flex items-center bg-white dark:bg-[#0c0c0e] rounded-full p-2 ring-1 ring-black/5 dark:ring-white/10 shadow-2xl">
+                             <div className="pl-4 text-slate-400"><Search size={22}/></div>
+                             <input 
+                               type="text" 
+                               placeholder="Cari item (e.g. Mobile Legends)..." 
+                               className="w-full bg-transparent border-none focus:ring-0 px-4 py-3 text-slate-800 dark:text-slate-200 placeholder:text-slate-400 font-medium"
+                               value={searchQuery}
+                               onChange={(e) => setSearchQuery(e.target.value)}
+                             />
                          </div>
-                         
-                         <div className="relative px-1 pb-1">
-                            <div className="flex justify-between items-start mb-2">
-                               <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 line-clamp-1 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">{product.name}</h3>
-                            </div>
-                            <div className="flex justify-between items-end">
-                                <div>
-                                   <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">{product.category}</p>
-                                   <p className="font-black text-lg bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400">
-                                      Rp {product.price?.toLocaleString()}
-                                   </p>
+                      </div>
+                   </div>
+               </div>
+
+               {/* --- CATEGORIES & PRODUCT GRID --- */}
+               <div>
+                  {/* Categories Modern */}
+                  <div className="flex gap-4 justify-center overflow-x-auto pb-8 scrollbar-hide">
+                      {['All', 'Game', 'Akun', 'Software'].map(cat => (
+                        <button 
+                          key={cat}
+                          onClick={() => setSelectedCategory(cat)}
+                          className={`relative px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 overflow-hidden group ${
+                            selectedCategory === cat 
+                            ? 'text-white shadow-lg shadow-cyan-500/25 scale-105' 
+                            : 'bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                          }`}
+                        >
+                          {selectedCategory === cat && (
+                            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
+                          )}
+                          <span className="relative z-10">{cat}</span>
+                        </button>
+                      ))}
+                   </div>
+
+                   {/* Product Grid */}
+                   {isLoading ? (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                       {[1,2,3,4].map(i => <ProductSkeleton key={i} />)}
+                     </div>
+                   ) : filteredProducts.length === 0 ? (
+                     <div className="flex flex-col items-center justify-center py-20 opacity-60">
+                        <div className="bg-slate-100 dark:bg-white/5 p-4 rounded-full mb-4"><Search size={32}/></div>
+                        <p className="font-bold text-lg">Produk tidak ditemukan</p>
+                     </div>
+                   ) : (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 content-visibility-auto">
+                       {filteredProducts.map(product => (
+                         <div 
+                           key={product.id} 
+                           onClick={() => { setSelectedProduct(product); setCheckoutStep(1); }}
+                           className="group relative bg-white dark:bg-zinc-900/60 backdrop-blur-md rounded-[2rem] p-4 cursor-pointer border border-slate-100 dark:border-white/5 hover:border-cyan-500/30 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl hover:shadow-cyan-500/10"
+                         >
+                             {/* Image Container */}
+                             <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-3xl mb-5 overflow-hidden relative">
+                                {product.image_url ? (
+                                  <img src={product.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"/>
+                                ) : (
+                                  <div className="absolute inset-0 flex items-center justify-center text-5xl font-black text-slate-200 dark:text-zinc-800 group-hover:text-cyan-500/20 transition-colors">
+                                    {product.name.slice(0,2).toUpperCase()}
+                                  </div>
+                                )}
+                                
+                                {/* Overlay Gradient on Hover */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+                                {/* Category Badge */}
+                                <div className="absolute top-3 left-3 bg-white/90 dark:bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 border border-white/20">
+                                  {product.category}
                                 </div>
-                                <div className="bg-slate-100 dark:bg-white/5 p-2.5 rounded-full group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300 group-hover:rotate-12 group-hover:shadow-lg group-hover:shadow-cyan-500/30">
-                                   <ShoppingCart size={20}/>
+                             </div>
+                             
+                             {/* Product Info */}
+                             <div className="px-2 pb-2">
+                                <div className="flex justify-between items-start mb-3">
+                                   <h3 className="font-bold text-lg text-slate-800 dark:text-slate-100 line-clamp-1 group-hover:text-cyan-500 transition-colors">{product.name}</h3>
+                                </div>
+                                
+                                <div className="flex items-end justify-between">
+                                   <div className="flex flex-col">
+                                      <span className="text-xs text-slate-400 font-medium mb-0.5">Mulai dari</span>
+                                      <span className="font-black text-xl text-slate-900 dark:text-white">
+                                         Rp {product.price?.toLocaleString()}
+                                      </span>
+                                   </div>
+                                   <button className="bg-slate-100 dark:bg-white/10 text-slate-900 dark:text-white p-3 rounded-2xl group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300 transform group-hover:rotate-12">
+                                      <ArrowUpRight size={20}/>
+                                   </button>
                                 </div>
                              </div>
                          </div>
+                       ))}
                      </div>
-                   ))}
-                 </div>
-               )}
+                   )}
+               </div>
             </div>
           ) : (
             // --- HALAMAN STAFF / LAPORAN ---
@@ -800,7 +842,7 @@ export default function WuregStore() {
 
         {/* --- CHECKOUT MODAL --- */}
         {selectedProduct && (
-          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn">
+          <div className="fixed inset-0 z-[110] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn">
             <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-[2.5rem] border border-white/20 dark:border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden relative">
                <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md z-10">
                   <div>
@@ -929,8 +971,8 @@ export default function WuregStore() {
                   )}
                </div>
             </div>
-          </div>
-        )}
+          )
+        }
         <style dangerouslySetInnerHTML={{__html: `
           @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
           @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
