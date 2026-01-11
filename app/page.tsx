@@ -5,7 +5,7 @@ import {
   Menu, X, Search, ShoppingCart, User, LogOut, 
   Smartphone, Monitor, Gamepad, CreditCard, CheckCircle, 
   ChevronRight, ExternalLink, ShieldCheck, Zap,
-  Instagram, Twitter, Youtube, MessageCircle, Music,
+  Instagram, Twitter, Globe, Youtube, MessageCircle, Music,
   Sun, Moon, Loader2, AlertCircle, Check, 
   Calendar, TrendingUp, BarChart3, PieChart, Download
 } from 'lucide-react';
