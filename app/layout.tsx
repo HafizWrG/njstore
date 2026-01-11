@@ -4,15 +4,18 @@ import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
 
-// --- GANTI BAGIAN INI ---
+// --- UPDATE BAGIAN INI ---
 export const metadata: Metadata = {
   title: "Wureg Store",
   description: "Digital Products & Services",
   icons: {
-    icon: 'https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383', // Link ikon kamu
+    // Pastikan URL ini bisa diakses publik
+    icon: 'https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383',
+    // Opsional: Jika ingin spesifik untuk Apple devices
+    apple: 'https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383',
   },
 };
-// ------------------------
+// -------------------------
 
 export default function RootLayout({
   children,
