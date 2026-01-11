@@ -6,17 +6,16 @@ import {
   Smartphone, Monitor, Gamepad, CreditCard, CheckCircle, 
   ChevronRight, ExternalLink, ShieldCheck, Zap,
   Instagram, Twitter, Youtube, MessageCircle, Music,
-  Sun, Moon, Loader2, AlertCircle, Check
+  Sun, Moon, Loader2, AlertCircle, Check, 
+  Calendar, TrendingUp, BarChart3, PieChart, Download
 } from 'lucide-react';
 
-// --- 1. SETUP ENV & SUPABASE ---
-// Mengambil key dari .env.local agar aman
 // --- 1. SETUP ENV & SUPABASE ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
 
 const createSupabaseClient = (baseUrl: string, key: string) => {
-  if (!baseUrl || !key) return null; // Safety check
+  if (!baseUrl || !key) return null;
   const headers = {
     'apikey': key,
     'Authorization': `Bearer ${key}`,
@@ -35,6 +34,7 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
         select: (columns = '*') => { url.searchParams.set('select', columns); return builder; },
         order: (column: string, { ascending = true } = {}) => { url.searchParams.set('order', `${column}.${ascending ? 'asc' : 'desc'}`); return builder; },
         eq: (column: string, value: any) => { url.searchParams.set(column, `eq.${value}`); return builder; },
+        gte: (column: string, value: any) => { url.searchParams.set(column, `gte.${value}`); return builder; }, // Filter Greater Than Equal
         single: () => { isSingle = true; return builder; },
         insert: (data: any) => { method = 'POST'; body = JSON.stringify(data); return builder; },
         then: (resolve: Function, reject: Function) => {
@@ -60,7 +60,6 @@ const ADMIN_CONTACT = "6281528483575";
 
 // --- HELPER COMPONENTS ---
 
-// 1. Toast Notification (Pengganti Alert)
 const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) => (
   <div className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl animate-slideIn transition-all ${
     type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
@@ -71,7 +70,6 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
   </div>
 );
 
-// 2. Loading Skeleton (Agar tidak kosong saat loading)
 const ProductSkeleton = () => (
   <div className="bg-white dark:bg-zinc-900/50 border border-zinc-200 dark:border-white/5 rounded-xl p-5 flex flex-col gap-3 animate-pulse">
     <div className="h-40 bg-zinc-200 dark:bg-zinc-800 rounded-lg w-full"></div>
@@ -87,13 +85,9 @@ const ProductSkeleton = () => (
 // --- MAIN COMPONENT ---
 
 export default function WuregStore() {
-  // UI State
   const [activePage, setActivePage] = useState('home'); 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isSosmedModalOpen, setIsSosmedModalOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(true);
-  
-  // Toast State
   const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
 
   // Data State
@@ -101,34 +95,70 @@ export default function WuregStore() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Auth State
+  // Staff & Report State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [staffPinInput, setStaffPinInput] = useState('');
+  const [reportFilter, setReportFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
+  const [isReportLoading, setIsReportLoading] = useState(false);
 
-  // Transaction State
+  // Checkout State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [checkoutStep, setCheckoutStep] = useState(1); 
   const [selectedPayment, setSelectedPayment] = useState('');
   
-  // Form & Validation State
   const [buyerForm, setBuyerForm] = useState({ name: '', phone: '', email: '', device_model: '' });
   const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-
   const [mounted, setMounted] = useState(false);
 
-  // Show Toast Helper
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000); // Hilang otomatis dalam 3 detik
+    setTimeout(() => setToast(null), 3000);
   };
 
   useEffect(() => {
     setMounted(true);
     fetchProducts();
   }, []);
+
+  // Fetch Transaksi dengan Filter
+  useEffect(() => {
+    if (isStaffLoggedIn) {
+      fetchFilteredTransactions();
+    }
+  }, [reportFilter, isStaffLoggedIn]);
+
+  const getStartDate = (filter: string) => {
+    const now = new Date();
+    if (filter === 'today') return new Date(now.setHours(0, 0, 0, 0)).toISOString();
+    if (filter === 'week') { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString(); }
+    if (filter === 'month') { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString(); }
+    return null; // All time
+  };
+
+  const fetchFilteredTransactions = async () => {
+    if (!supabase) return;
+    setIsReportLoading(true);
+    try {
+      const startDate = getStartDate(reportFilter);
+      let query = supabase.from('transactions').select('*').order('created_at', { ascending: false });
+      
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      setTransactions(data || []);
+    } catch (err) {
+      console.error(err);
+      showToast("Gagal memuat laporan", "error");
+    } finally {
+      setIsReportLoading(false);
+    }
+  };
 
   const getIconByCategory = (category: string) => {
     const cat = category ? category.trim() : '';
@@ -152,9 +182,7 @@ export default function WuregStore() {
       })) || [];
       setProducts(mappedData);
     } catch (error) {
-      console.error("Error:", error);
-      // Fallback data jika database belum siap/koneksi gagal
-      showToast("Gagal memuat data live, menggunakan mode offline.", "error");
+      showToast("Mode Offline / Database Error", "error");
     } finally {
       setIsLoading(false);
     }
@@ -168,8 +196,6 @@ export default function WuregStore() {
       errors.name = 'Nama minimal 3 karakter';
       isValid = false;
     }
-
-    // Regex sederhana untuk email ATAU nomor HP (08...)
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const phoneRegex = /^08[0-9]{8,}$/;
     
@@ -185,7 +211,6 @@ export default function WuregStore() {
       errors.device_model = 'Device model wajib diisi untuk kategori Akun';
       isValid = false;
     }
-
     setFormErrors(errors);
     return isValid;
   };
@@ -207,38 +232,23 @@ export default function WuregStore() {
     try {
       const { data, error } = await supabase.from('transactions').insert([transactionData]).select();
       if (error) throw error;
-      
       const newTrxId = data?.[0]?.id || 'TRX-NEW';
       
-      // Kirim ke WA
-      const message = `Halo Admin WuregStore, Order Baru! 🚀
-      
-📦 *Produk:* ${selectedProduct.name}
-💰 *Harga:* Rp ${selectedProduct.price?.toLocaleString()}
-👤 *Nama:* ${buyerForm.name}
-${selectedProduct.category === 'Akun' ? `📱 *Device:* ${transactionData.device_model}` : ''}
-💳 *Pembayaran:* ${selectedPayment}
-🆔 *ID Order:* ${newTrxId}
-
-Mohon diproses segera. Terima kasih!`;
+      const message = `Halo Admin WuregStore, Order Baru! 🚀\n\n📦 *Produk:* ${selectedProduct.name}\n💰 *Harga:* Rp ${selectedProduct.price?.toLocaleString()}\n👤 *Nama:* ${buyerForm.name}\n${selectedProduct.category === 'Akun' ? `📱 *Device:* ${transactionData.device_model}\n` : ''}💳 *Pembayaran:* ${selectedPayment}\n🆔 *ID Order:* ${newTrxId}\n\nMohon diproses segera. Terima kasih!`;
 
       window.open(`https://wa.me/${ADMIN_CONTACT}?text=${encodeURIComponent(message)}`, '_blank');
-      
       showToast("Pesanan berhasil dibuat!", "success");
       setSelectedProduct(null);
       setCheckoutStep(1);
       setBuyerForm({ name: '', phone: '', email: '', device_model: '' });
       setFormErrors({ name: '', email: '', device_model: '' });
-
     } catch (err) {
-      console.error("Error:", err);
       showToast("Gagal menyimpan transaksi.", "error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // ... (Staff Login & Render Helpers tetap sama, hanya update UI sedikit)
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!supabase) return;
@@ -247,13 +257,42 @@ Mohon diproses segera. Terima kasih!`;
       if (data && !error) {
         setIsStaffLoggedIn(true);
         setStaffPinInput('');
-        const { data: trx } = await supabase.from('transactions').select('*').order('created_at', { ascending: false });
-        setTransactions(trx || []);
         showToast("Login Berhasil", "success");
       } else {
         showToast("PIN Salah!", "error");
       }
     } catch (err) { showToast("Error login", "error"); }
+  };
+
+  // --- REPORT AGGREGATION LOGIC ---
+  const totalRevenue = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
+  const successCount = transactions.filter(t => t.status === 'Selesai').length; // Asumsi status 'Selesai' nanti diupdate manual di DB
+  
+  // Hitung Top Products
+  const productCount = transactions.reduce((acc: any, curr) => {
+    acc[curr.product_name] = (acc[curr.product_name] || 0) + 1;
+    return acc;
+  }, {});
+  const topProducts = Object.entries(productCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
+
+  // Hitung Payment Methods
+  const paymentCount = transactions.reduce((acc: any, curr) => {
+    acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1;
+    return acc;
+  }, {});
+
+  const downloadCSV = () => {
+    const headers = "ID,Date,Product,Price,Buyer,Method,Status\n";
+    const rows = transactions.map(t => 
+      `${t.id},"${new Date(t.created_at).toLocaleDateString()}", "${t.product_name}",${t.price},"${t.buyer_name}",${t.payment_method},${t.status}`
+    ).join("\n");
+    
+    const blob = new Blob([headers + rows], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Laporan_WuregStore_${reportFilter}.csv`;
+    a.click();
   };
 
   const filteredProducts = products.filter(p => {
@@ -266,13 +305,10 @@ Mohon diproses segera. Terima kasih!`;
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
-      {/* GLOBAL TRANSITION WRAPPER */}
       <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 font-sans selection:bg-cyan-500/30 transition-colors duration-300 ease-in-out">
         
-        {/* TOAST COMPONENT */}
         {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-        {/* NAVBAR */}
         <nav className="fixed w-full z-50 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200 dark:border-white/5 transition-colors duration-300">
           <div className="container mx-auto px-4 h-16 flex items-center justify-between">
             <div className="flex items-center gap-2 cursor-pointer group" onClick={() => { setActivePage('home'); setIsMenuOpen(false); }}>
@@ -282,22 +318,14 @@ Mohon diproses segera. Terima kasih!`;
               <span className="text-xl font-bold tracking-tight">Wureg<span className="text-cyan-600 dark:text-cyan-400">Store</span></span>
             </div>
 
-            {/* Desktop Menu */}
             <div className="hidden md:flex items-center gap-6">
               <button onClick={() => setActivePage('home')} className={`text-sm font-medium transition-colors ${activePage === 'home' ? 'text-cyan-500' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>Store</button>
               <button onClick={() => setActivePage('staff')} className={`text-sm font-medium transition-colors ${activePage === 'staff' ? 'text-cyan-500' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>Staff</button>
-              
               <div className="h-6 w-px bg-zinc-200 dark:bg-white/10"></div>
-
-              <button 
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all hover:scale-110 active:scale-95"
-              >
+              <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all hover:scale-110 active:scale-95">
                 {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
               </button>
             </div>
-
-            {/* Mobile Toggle */}
             <div className="flex md:hidden gap-3">
                <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800">
                 {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -307,8 +335,6 @@ Mohon diproses segera. Terima kasih!`;
               </button>
             </div>
           </div>
-          
-          {/* Mobile Dropdown */}
           {isMenuOpen && (
              <div className="md:hidden bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-white/5 p-4 space-y-2 animate-fadeIn absolute w-full shadow-xl">
                 <button onClick={() => {setActivePage('home'); setIsMenuOpen(false)}} className="w-full text-left p-3 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5">Store</button>
@@ -317,18 +343,15 @@ Mohon diproses segera. Terima kasih!`;
           )}
         </nav>
 
-        {/* MAIN CONTENT */}
         <main className="container mx-auto px-4 pt-28 pb-20 min-h-screen">
           {activePage === 'home' ? (
             <div className="space-y-8 animate-fadeIn">
-               {/* Hero */}
+               {/* --- HERO & SEARCH (Sama seperti sebelumnya) --- */}
                <div className="text-center py-10 px-4 bg-gradient-to-b from-cyan-500/5 to-transparent rounded-3xl border border-zinc-100 dark:border-white/5">
                   <h1 className="text-4xl md:text-6xl font-black tracking-tighter mb-4 bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 to-blue-600 dark:to-purple-500">
                     Digital Needs.<br/>Solved.
                   </h1>
                   <p className="text-zinc-500 max-w-lg mx-auto mb-6">Top up game, beli software, dan akun premium dengan proses cepat dan aman.</p>
-                  
-                  {/* Search Bar Styled */}
                   <div className="max-w-md mx-auto relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-full blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
                     <div className="relative flex items-center bg-white dark:bg-zinc-900 rounded-full p-1 border border-zinc-200 dark:border-white/10 shadow-lg">
@@ -344,7 +367,6 @@ Mohon diproses segera. Terima kasih!`;
                   </div>
                </div>
 
-               {/* Filter Pills */}
                <div className="flex gap-2 justify-center overflow-x-auto pb-4 scrollbar-hide">
                   {['All', 'Game', 'Akun', 'Software'].map(cat => (
                     <button 
@@ -361,7 +383,6 @@ Mohon diproses segera. Terima kasih!`;
                   ))}
                </div>
 
-               {/* Grid */}
                {isLoading ? (
                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                     {[1,2,3,4].map(i => <ProductSkeleton key={i} />)}
@@ -406,8 +427,8 @@ Mohon diproses segera. Terima kasih!`;
                )}
             </div>
           ) : (
-            // STAFF PAGE (Simplified for brevity, logic maintained)
-            <div className="animate-fadeIn max-w-4xl mx-auto">
+            // --- HALAMAN STAFF / LAPORAN ---
+            <div className="animate-fadeIn max-w-5xl mx-auto">
                {!isStaffLoggedIn ? (
                  <div className="max-w-md mx-auto bg-white dark:bg-zinc-900 p-8 rounded-2xl border border-zinc-200 dark:border-white/10 shadow-2xl">
                     <h2 className="text-2xl font-bold text-center mb-6">Staff Access</h2>
@@ -417,28 +438,146 @@ Mohon diproses segera. Terima kasih!`;
                     </form>
                  </div>
                ) : (
-                 <div>
-                    <div className="flex justify-between items-center mb-6">
-                       <h2 className="text-2xl font-bold">Dashboard</h2>
-                       <button onClick={()=>setIsStaffLoggedIn(false)} className="text-red-500 flex items-center gap-2 hover:bg-red-500/10 px-4 py-2 rounded-lg transition-colors"><LogOut size={16}/> Logout</button>
+                 <div className="space-y-6">
+                    {/* Header Dashboard */}
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                       <div>
+                          <h2 className="text-3xl font-black text-zinc-900 dark:text-white">Laporan Penjualan</h2>
+                          <p className="text-zinc-500">Ringkasan aktivitas transaksi WuregStore.</p>
+                       </div>
+                       <div className="flex items-center gap-2">
+                          <button onClick={downloadCSV} className="flex items-center gap-2 bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-4 py-2 rounded-lg hover:bg-zinc-200 dark:hover:bg-zinc-700 transition">
+                             <Download size={16}/> CSV
+                          </button>
+                          <button onClick={()=>setIsStaffLoggedIn(false)} className="bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white px-4 py-2 rounded-lg transition flex items-center gap-2">
+                             <LogOut size={16}/>
+                          </button>
+                       </div>
                     </div>
-                    {/* Table Simplified */}
-                    <div className="bg-white dark:bg-zinc-900 rounded-xl overflow-hidden border border-zinc-200 dark:border-white/10">
-                       <table className="w-full text-sm text-left">
-                          <thead className="bg-zinc-50 dark:bg-white/5 uppercase text-xs text-zinc-500">
-                             <tr><th className="p-4">Date</th><th className="p-4">Item</th><th className="p-4">Buyer</th><th className="p-4">Status</th></tr>
-                          </thead>
-                          <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
-                             {transactions.map(t => (
-                               <tr key={t.id} className="hover:bg-zinc-50 dark:hover:bg-white/5">
-                                  <td className="p-4">{new Date(t.created_at).toLocaleDateString()}</td>
-                                  <td className="p-4 font-medium">{t.product_name}</td>
-                                  <td className="p-4">{t.buyer_name}</td>
-                                  <td className="p-4"><span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">{t.status}</span></td>
-                               </tr>
-                             ))}
-                          </tbody>
-                       </table>
+
+                    {/* Filter Tanggal */}
+                    <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                       {[
+                         {id: 'today', label: 'Hari Ini'},
+                         {id: 'week', label: '7 Hari'},
+                         {id: 'month', label: '30 Hari'},
+                         {id: 'all', label: 'Semua'}
+                       ].map(f => (
+                         <button 
+                           key={f.id}
+                           onClick={() => setReportFilter(f.id as any)}
+                           className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold border transition-all ${
+                             reportFilter === f.id
+                             ? 'bg-cyan-500 border-cyan-500 text-white shadow-lg shadow-cyan-500/20'
+                             : 'bg-white dark:bg-zinc-900 border-zinc-200 dark:border-white/10 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-white/5'
+                           }`}
+                         >
+                            <Calendar size={14}/> {f.label}
+                         </button>
+                       ))}
+                    </div>
+
+                    {/* Ringkasan Cards */}
+                    {isReportLoading ? (
+                      <div className="h-32 w-full bg-zinc-100 dark:bg-zinc-800 animate-pulse rounded-xl"/>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-2xl text-white shadow-lg shadow-cyan-500/20">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="bg-white/20 p-2 rounded-lg"><TrendingUp size={24}/></div>
+                              <span className="text-xs bg-white/20 px-2 py-1 rounded-full">Gross</span>
+                           </div>
+                           <h3 className="text-3xl font-black">Rp {totalRevenue.toLocaleString()}</h3>
+                           <p className="text-cyan-100 text-sm">Total Omzet</p>
+                        </div>
+
+                        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-white/10">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400"><ShoppingCart size={24}/></div>
+                           </div>
+                           <h3 className="text-3xl font-black">{transactions.length}</h3>
+                           <p className="text-zinc-500 text-sm">Total Transaksi</p>
+                        </div>
+
+                        <div className="bg-white dark:bg-zinc-900 p-6 rounded-2xl border border-zinc-200 dark:border-white/10">
+                           <div className="flex justify-between items-start mb-4">
+                              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400"><PieChart size={24}/></div>
+                           </div>
+                           <h3 className="text-3xl font-black">{successCount}</h3>
+                           <p className="text-zinc-500 text-sm">Transaksi Selesai</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Analisis & Tabel */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                       {/* Kiri: Statistik */}
+                       <div className="space-y-6">
+                          {/* Top Products */}
+                          <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-zinc-200 dark:border-white/10">
+                             <h4 className="font-bold mb-4 flex items-center gap-2"><BarChart3 size={18}/> Produk Terlaris</h4>
+                             <div className="space-y-3">
+                                {topProducts.length === 0 ? <p className="text-xs text-zinc-500">Belum ada data.</p> : topProducts.map(([name, count]: any, idx) => (
+                                  <div key={idx} className="flex justify-between items-center">
+                                     <div className="flex items-center gap-3">
+                                        <div className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-white/10 flex items-center justify-center text-xs font-bold text-zinc-500">{idx+1}</div>
+                                        <span className="text-sm font-medium line-clamp-1 w-32">{name}</span>
+                                     </div>
+                                     <span className="text-xs font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 px-2 py-1 rounded-md">{count}x</span>
+                                  </div>
+                                ))}
+                             </div>
+                          </div>
+
+                          {/* Payment Methods */}
+                          <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-zinc-200 dark:border-white/10">
+                             <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={18}/> Metode Pembayaran</h4>
+                             <div className="space-y-3">
+                                {Object.entries(paymentCount).map(([method, count]: any) => (
+                                   <div key={method} className="flex justify-between items-center text-sm">
+                                      <span className="text-zinc-600 dark:text-zinc-400">{method}</span>
+                                      <div className="flex items-center gap-2">
+                                         <div className="h-2 w-16 bg-zinc-100 dark:bg-white/10 rounded-full overflow-hidden">
+                                            <div className="h-full bg-cyan-500" style={{width: `${(count / transactions.length) * 100}%`}}></div>
+                                         </div>
+                                         <span className="font-bold">{count}</span>
+                                      </div>
+                                   </div>
+                                ))}
+                             </div>
+                          </div>
+                       </div>
+
+                       {/* Kanan: Tabel Riwayat */}
+                       <div className="lg:col-span-2 bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-white/10 overflow-hidden flex flex-col">
+                          <div className="p-4 border-b border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-white/5">
+                             <h4 className="font-bold">Riwayat Transaksi</h4>
+                          </div>
+                          <div className="overflow-x-auto">
+                             <table className="w-full text-sm text-left">
+                                <thead className="text-xs text-zinc-500 uppercase border-b border-zinc-200 dark:border-white/5">
+                                   <tr><th className="p-4">Tanggal</th><th className="p-4">Produk</th><th className="p-4">Harga</th><th className="p-4">Status</th></tr>
+                                </thead>
+                                <tbody className="divide-y divide-zinc-200 dark:divide-white/5">
+                                   {transactions.length === 0 ? (
+                                     <tr><td colSpan={4} className="p-8 text-center text-zinc-500">Tidak ada data untuk periode ini.</td></tr>
+                                   ) : transactions.map(t => (
+                                     <tr key={t.id} className="hover:bg-zinc-50 dark:hover:bg-white/5">
+                                        <td className="p-4 text-zinc-500">{new Date(t.created_at).toLocaleDateString('id-ID')}</td>
+                                        <td className="p-4 font-medium">{t.product_name}<br/><span className="text-[10px] text-zinc-500">{t.buyer_name}</span></td>
+                                        <td className="p-4">Rp {t.price?.toLocaleString()}</td>
+                                        <td className="p-4">
+                                           <span className={`text-[10px] px-2 py-1 rounded-full font-bold ${
+                                              t.status === 'Selesai' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' 
+                                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'
+                                           }`}>{t.status}</span>
+                                        </td>
+                                     </tr>
+                                   ))}
+                                </tbody>
+                             </table>
+                          </div>
+                       </div>
                     </div>
                  </div>
                )}
@@ -446,12 +585,10 @@ Mohon diproses segera. Terima kasih!`;
           )}
         </main>
 
-        {/* CHECKOUT MODAL (IMPROVED) */}
+        {/* --- CHECKOUT MODAL (Code Sama seperti Update Sebelumnya) --- */}
         {selectedProduct && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
             <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-3xl border border-zinc-200 dark:border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-               
-               {/* Header */}
                <div className="p-5 border-b border-zinc-100 dark:border-white/5 flex justify-between items-center bg-zinc-50/50 dark:bg-black/20">
                   <div>
                     <h3 className="font-bold text-lg">Checkout</h3>
@@ -459,10 +596,7 @@ Mohon diproses segera. Terima kasih!`;
                   </div>
                   <button onClick={() => setSelectedProduct(null)} className="p-2 hover:bg-zinc-200 dark:hover:bg-white/10 rounded-full transition-colors"><X size={20}/></button>
                </div>
-
-               {/* Body */}
                <div className="p-6 overflow-y-auto custom-scrollbar">
-                  {/* Product Snippet */}
                   <div className="flex items-center gap-4 bg-gradient-to-r from-zinc-50 to-white dark:from-zinc-900 dark:to-zinc-900/50 p-4 rounded-xl border border-zinc-200 dark:border-white/5 mb-6">
                      <div className="h-12 w-12 bg-cyan-500/10 rounded-lg flex items-center justify-center text-cyan-600 font-bold">
                         {selectedProduct.name.slice(0,1)}
@@ -472,7 +606,6 @@ Mohon diproses segera. Terima kasih!`;
                         <p className="text-cyan-600 dark:text-cyan-400 font-mono text-sm">Rp {selectedProduct.price?.toLocaleString()}</p>
                      </div>
                   </div>
-
                   {checkoutStep === 1 ? (
                     <div className="space-y-4 animate-slideIn">
                        <div>
@@ -486,7 +619,6 @@ Mohon diproses segera. Terima kasih!`;
                           />
                           {formErrors.name && <p className="text-red-500 text-xs mt-1 ml-1 flex items-center gap-1"><AlertCircle size={10}/> {formErrors.name}</p>}
                        </div>
-
                        <div>
                           <label className="text-xs font-bold text-zinc-500 uppercase ml-1 mb-1 block">WhatsApp / Email</label>
                           <input 
@@ -498,7 +630,6 @@ Mohon diproses segera. Terima kasih!`;
                           />
                            {formErrors.email && <p className="text-red-500 text-xs mt-1 ml-1 flex items-center gap-1"><AlertCircle size={10}/> {formErrors.email}</p>}
                        </div>
-
                        {selectedProduct.category === 'Akun' && (
                          <div className="bg-blue-50 dark:bg-blue-900/10 p-4 rounded-xl border border-blue-100 dark:border-blue-500/20">
                             <label className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase mb-1 block flex items-center gap-1"><Smartphone size={12}/> Info Device (Wajib)</label>
@@ -512,7 +643,6 @@ Mohon diproses segera. Terima kasih!`;
                             {formErrors.device_model && <p className="text-red-500 text-xs mt-1">{formErrors.device_model}</p>}
                          </div>
                        )}
-
                        <button 
                          onClick={() => { if(validateForm()) setCheckoutStep(2); }}
                          className="w-full bg-zinc-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl mt-4 hover:scale-[1.02] active:scale-95 transition-all flex justify-center items-center gap-2"
@@ -539,7 +669,6 @@ Mohon diproses segera. Terima kasih!`;
                              </div>
                           ))}
                        </div>
-
                        <div className="flex gap-3 mt-6">
                           <button onClick={() => setCheckoutStep(1)} className="w-1/3 py-3 rounded-xl font-bold bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors">Kembali</button>
                           <button 
@@ -556,8 +685,6 @@ Mohon diproses segera. Terima kasih!`;
             </div>
           </div>
         )}
-
-        {/* CSS INJECTION */}
         <style dangerouslySetInnerHTML={{__html: `
           @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
           @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
