@@ -286,7 +286,7 @@ Mohon segera diproses. Terima kasih!`;
           />
         </div>
         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
-          {['All', 'Akun', 'Software', 'Games'].map(cat => (
+          {['All', 'Akun', 'Software', 'Game'].map(cat => (
             <button 
               key={cat}
               onClick={() => setSelectedCategory(cat)}
