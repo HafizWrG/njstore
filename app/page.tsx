@@ -1,27 +1,16 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
   Menu, X, Search, ShoppingCart, LogOut, 
   Smartphone, Monitor, Gamepad, CreditCard, CheckCircle, 
   ChevronRight, ShieldCheck, Zap,
   Sun, Moon, Loader2, AlertCircle,
-  Calendar, TrendingUp, BarChart3, PieChart, Download,
-  RefreshCw, MoreVertical, ExternalLink, Mail, Star, Copy
+  Calendar, TrendingUp, Download,
+  RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE (Custom Client) ---
-const getEnv = (key: string) => {
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[key] || '';
-    }
-  } catch (e) {
-    // Ignore error if process is not defined
-  }
-  return '';
-};
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
 
@@ -108,13 +97,12 @@ const SOCIALS = [
 
 // --- PAYMENT METHODS DATA ---
 const PAYMENT_METHODS = [
-  { id: 'DANA', name: 'DANA', va: '0815-2848-3575 (a.n Wureg Store)', logo: 'D' },
-  { id: 'SHOPEEPAY', name: 'SHOPEEPAY', va: '0815-2848-3575 (a.n Wureg Store)', logo: 'S' },
-  { id: 'BRI', name: 'BRI', va: '3321-0102-1234-539 (a.n Wureg Store)', logo: 'B' }
+  { id: 'DANA', name: 'DANA', va: '0815-2848-3575 (a.n Hafiz)', logo: 'D' },
+  { id: 'SHOPEEPAY', name: 'SHOPEEPAY', va: '0815-2848-3575 (a.n Hafiz)', logo: 'S' },
+  { id: 'BRI', name: 'BRI', va: '3321-0102-1234-539 (a.n Hafiz)', logo: 'B' }
 ];
 
 // --- HELPER COMPONENTS ---
-
 const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) => (
   <div className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl animate-slideIn transition-all backdrop-blur-md border ${
     type === 'success' ? 'bg-green-500/80 border-green-400 text-white' : 'bg-red-500/80 border-red-400 text-white'
@@ -138,10 +126,10 @@ const ProductSkeleton = () => (
 );
 
 // --- MAIN COMPONENT ---
-
 export default function WuregStore() {
   const [activePage, setActivePage] = useState('home'); 
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // New state for mobile menu
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
 
@@ -169,10 +157,10 @@ export default function WuregStore() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  const showToast = (msg: string, type: 'success' | 'error') => {
+  const showToast = useCallback((msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
-  };
+  }, []);
 
   useEffect(() => {
     setMounted(true);
@@ -254,7 +242,6 @@ export default function WuregStore() {
       if (error) throw error;
       
       const mappedData = data?.map((item: any) => ({
-        ...item,
         ...item,
         icon: item.icon || getIconByCategory(item.category)
       })) || [];
@@ -342,19 +329,25 @@ export default function WuregStore() {
     } catch (err: any) { showToast("Error login", "error"); }
   };
 
-  const totalRevenue = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
-  const successCount = transactions.filter(t => t.status === 'Selesai').length; 
-  
-  const productCount = transactions.reduce((acc: any, curr) => {
-    acc[curr.product_name] = (acc[curr.product_name] || 0) + 1;
-    return acc;
-  }, {});
-  const topProducts = Object.entries(productCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
+  // --- OPTIMIZATION START (Req #2): Memoize expensive calculations ---
+  const { totalRevenue, successCount, topProducts, paymentCount } = useMemo(() => {
+    const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
+    const success = transactions.filter(t => t.status === 'Selesai').length;
+    
+    const pCount = transactions.reduce((acc: any, curr) => {
+      acc[curr.product_name] = (acc[curr.product_name] || 0) + 1;
+      return acc;
+    }, {});
+    const top = Object.entries(pCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
+    
+    const payCount = transactions.reduce((acc: any, curr) => {
+      acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1;
+      return acc;
+    }, {});
 
-  const paymentCount = transactions.reduce((acc: any, curr) => {
-    acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1;
-    return acc;
-  }, {});
+    return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount };
+  }, [transactions]);
+  // --- OPTIMIZATION END ---
 
   const downloadCSV = () => {
     const headers = "ID,Date,Product,Price,Buyer Name,Buyer Contact,Device Model,Method,Status\n";
@@ -370,21 +363,32 @@ export default function WuregStore() {
     a.click();
   };
 
-  const filteredProducts = products.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchCat = selectedCategory === 'All' || p.category === selectedCategory || (selectedCategory === 'Game' && p.category === 'Games');
-    return matchSearch && matchCat;
-  });
+  // --- OPTIMIZATION START (Req #2): Memoize product filtering ---
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchCat = selectedCategory === 'All' || p.category === selectedCategory || (selectedCategory === 'Game' && p.category === 'Games');
+      return matchSearch && matchCat;
+    });
+  }, [products, searchQuery, selectedCategory]);
+  // --- OPTIMIZATION END ---
+
+  const handleMobileNav = (page: string) => {
+    setActivePage(page);
+    setIsMobileMenuOpen(false);
+    if(page === 'contact') setIsContactOpen(true);
+    else setIsContactOpen(false);
+  }
 
   if (!mounted) return null;
 
   return (
     <div className={isDarkMode ? 'dark' : ''}>
       <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 transition-colors duration-500 ease-in-out">
-        {/* Subtle Background Gradients */}
+        {/* Subtle Background Gradients - Will-change for GPU optimization */}
         <div className="fixed inset-0 z-0 pointer-events-none">
-           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-[120px] animate-pulse"></div>
-           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-[120px] animate-pulse delay-1000"></div>
+           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-[120px] animate-pulse will-change-transform"></div>
+           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-[120px] animate-pulse delay-1000 will-change-transform"></div>
         </div>
         
         {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -393,7 +397,6 @@ export default function WuregStore() {
         <nav className="fixed w-full z-50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/20 dark:border-white/5 shadow-sm transition-colors duration-300">
           <div className="container mx-auto px-4 h-20 flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { setActivePage('home'); setIsContactOpen(false); }}>
-              {/* Logo Update (Req #1) */}
               <img 
                 src="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" 
                 alt="WuregStore Logo"
@@ -405,21 +408,42 @@ export default function WuregStore() {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Desktop Menu */}
               <button onClick={() => setActivePage('home')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'}`}>Store</button>
               <button onClick={() => setActivePage('staff')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 ${activePage === 'staff' ? 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'}`}>Staff</button>
               
               <div className="h-6 w-px bg-slate-200 dark:bg-white/10 hidden md:block"></div>
               
-              {/* Dark Mode Toggle (Req #3) */}
               <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2.5 rounded-full bg-slate-100 dark:bg-zinc-800/50 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all hover:rotate-12 active:scale-95 border border-transparent hover:border-slate-200 dark:hover:border-zinc-700">
                 {isDarkMode ? <Sun size={20} className="text-yellow-400" fill="currentColor"/> : <Moon size={20} className="text-indigo-500" fill="currentColor"/>}
               </button>
 
-              <button onClick={() => setIsContactOpen(true)} className="flex items-center gap-2 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-white dark:to-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-full text-sm font-bold hover:shadow-lg hover:shadow-slate-500/20 hover:-translate-y-0.5 transition-all">
-                 <Menu size={18}/> <span className="hidden sm:inline">Contact</span>
+              {/* Desktop Contact Button */}
+              <button onClick={() => setIsContactOpen(true)} className="hidden md:flex items-center gap-2 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-white dark:to-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-full text-sm font-bold hover:shadow-lg hover:shadow-slate-500/20 hover:-translate-y-0.5 transition-all">
+                 <Menu size={18}/> <span>Contact</span>
+              </button>
+
+              {/* Mobile Hamburger (Req #1) */}
+              <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-slate-800 dark:text-white">
+                {isMobileMenuOpen ? <X size={24} /> : <AlignJustify size={24} />}
               </button>
             </div>
           </div>
+
+          {/* Mobile Dropdown Menu (Req #1) */}
+          {isMobileMenuOpen && (
+            <div className="md:hidden absolute top-20 left-0 w-full bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-white/10 p-4 flex flex-col gap-2 shadow-xl animate-slideDown origin-top">
+               <button onClick={() => handleMobileNav('home')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                  <ShoppingCart size={20}/> Store
+               </button>
+               <button onClick={() => handleMobileNav('staff')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 ${activePage === 'staff' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                  <ShieldCheck size={20}/> Staff Area
+               </button>
+               <button onClick={() => handleMobileNav('contact')} className="p-4 rounded-xl text-left font-bold flex items-center gap-3 text-slate-600 dark:text-slate-400">
+                  <Mail size={20}/> Contact Admin
+               </button>
+            </div>
+          )}
         </nav>
 
         {/* --- ADMIN CONTACT POPUP --- */}
@@ -459,17 +483,17 @@ export default function WuregStore() {
           {activePage === 'home' ? (
             <div className="space-y-12 animate-fadeIn">
                {/* --- HERO & SEARCH --- */}
-               <div className="text-center py-16 px-4 rounded-[3rem] border border-white/40 dark:border-white/5 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-sm shadow-xl shadow-indigo-500/5 relative overflow-hidden">
+               <div className="text-center py-16 px-4 rounded-[3rem] border border-white/40 dark:border-white/5 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-sm shadow-xl shadow-indigo-500/5 relative overflow-hidden will-change-transform">
                   {/* Decorative Elements */}
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
                   
                   <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6">
-                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 animate-gradient">Digital Needs.</span>
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 animate-gradient">Digital Shop.</span>
                     <br/>
-                    <span className="text-slate-800 dark:text-white">Solved.</span>
+                    <span className="text-slate-800 dark:text-white">Hafiz Wrg.</span>
                   </h1>
                   <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto mb-8 text-lg font-medium leading-relaxed">
-                    Platform top up game, software, dan akun premium termurah dengan proses kilat dan terpercaya.
+                    Marketplace game, software, dan akun termurah dengan proses cepat dan terpercaya dengan garansi 1 minggu.
                   </p>
                   
                   <div className="max-w-lg mx-auto relative group">
@@ -517,7 +541,7 @@ export default function WuregStore() {
                     <p className="font-bold text-lg">Produk tidak ditemukan</p>
                  </div>
                ) : (
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 content-visibility-auto">
                    {filteredProducts.map(product => (
                      <div 
                        key={product.id} 
@@ -604,22 +628,22 @@ export default function WuregStore() {
                     {/* Filter Tanggal */}
                     <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
                        {[
-                         {id: 'today', label: 'Hari Ini'},
-                         {id: 'week', label: '7 Hari'},
-                         {id: 'month', label: '30 Hari'},
-                         {id: 'all', label: 'Semua'}
+                          {id: 'today', label: 'Hari Ini'},
+                          {id: 'week', label: '7 Hari'},
+                          {id: 'month', label: '30 Hari'},
+                          {id: 'all', label: 'Semua'}
                        ].map(f => (
-                         <button 
-                           key={f.id}
-                           onClick={() => setReportFilter(f.id as any)}
-                           className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold border transition-all duration-300 ${
-                             reportFilter === f.id
-                             ? 'bg-gradient-to-r from-cyan-500 to-blue-500 border-transparent text-white shadow-lg shadow-blue-500/25'
-                             : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5'
-                           }`}
-                         >
-                            <Calendar size={16}/> {f.label}
-                         </button>
+                          <button 
+                            key={f.id}
+                            onClick={() => setReportFilter(f.id as any)}
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold border transition-all duration-300 ${
+                              reportFilter === f.id
+                              ? 'bg-gradient-to-r from-cyan-500 to-blue-500 border-transparent text-white shadow-lg shadow-blue-500/25'
+                              : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5'
+                            }`}
+                          >
+                             <Calendar size={16}/> {f.label}
+                          </button>
                        ))}
                     </div>
 
@@ -666,13 +690,13 @@ export default function WuregStore() {
                           <div className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-sm">
                              <h4 className="font-bold mb-6 flex items-center gap-3 text-lg"><Star size={20} className="text-yellow-500" fill="currentColor"/> Top Produk</h4>
                              <div className="space-y-4">
-                                {topProducts.length === 0 ? <p className="text-sm text-slate-500">Belum ada data.</p> : topProducts.map(([name, count]: any, idx) => (
+                                {topProducts.length === 0 ? <p className="text-sm text-slate-500">Belum ada data.</p> : topProducts.map(([name, count]: any, idx: number) => (
                                   <div key={idx} className="flex justify-between items-center group">
                                      <div className="flex items-center gap-3">
                                         <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                                          idx === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 
-                                          idx === 1 ? 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-400' :
-                                          'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+                                           idx === 0 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 
+                                           idx === 1 ? 'bg-slate-200 text-slate-700 dark:bg-white/10 dark:text-slate-400' :
+                                           'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
                                         }`}>{idx+1}</div>
                                         <span className="text-sm font-bold line-clamp-1 w-28 group-hover:text-cyan-600 transition-colors">{name}</span>
                                      </div>
@@ -689,8 +713,8 @@ export default function WuregStore() {
                                 {Object.entries(paymentCount).map(([method, count]: any) => (
                                    <div key={method} className="flex flex-col gap-1.5">
                                       <div className="flex justify-between text-sm font-bold">
-                                        <span className="text-slate-600 dark:text-slate-400">{method}</span>
-                                        <span>{count}</span>
+                                         <span className="text-slate-600 dark:text-slate-400">{method}</span>
+                                         <span>{count}</span>
                                       </div>
                                       <div className="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
                                          <div className="h-full bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div>
@@ -734,13 +758,13 @@ export default function WuregStore() {
                                         <td className="p-5">
                                            <div className="flex flex-col gap-1.5">
                                               <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                                <Mail size={12}/> {t.buyer_email || '-'}
+                                                 <Mail size={12}/> {t.buyer_email || '-'}
                                               </div>
                                               <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-500">
-                                                <Smartphone size={12}/> {t.device_model || '-'}
+                                                 <Smartphone size={12}/> {t.device_model || '-'}
                                               </div>
                                               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                                <CreditCard size={10}/> {t.payment_method}
+                                                 <CreditCard size={10}/> {t.payment_method}
                                               </div>
                                            </div>
                                         </td>
@@ -749,9 +773,9 @@ export default function WuregStore() {
                                               onClick={() => handleUpdateStatus(t.id, t.status)}
                                               disabled={statusUpdateId === t.id}
                                               className={`text-xs px-4 py-2 rounded-xl font-bold border transition-all hover:scale-105 active:scale-95 flex items-center gap-2 shadow-sm ${
-                                                t.status === 'Selesai' ? 'bg-green-500 text-white border-green-600 hover:bg-green-600' 
-                                                : t.status === 'Gagal' ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
-                                                : 'bg-yellow-400 text-yellow-900 border-yellow-500 hover:bg-yellow-300'
+                                                 t.status === 'Selesai' ? 'bg-green-500 text-white border-green-600 hover:bg-green-600' 
+                                                 : t.status === 'Gagal' ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
+                                                 : 'bg-yellow-400 text-yellow-900 border-yellow-500 hover:bg-yellow-300'
                                               }`}
                                            >
                                               {statusUpdateId === t.id ? <Loader2 size={12} className="animate-spin"/> : 
@@ -803,13 +827,13 @@ export default function WuregStore() {
                   {checkoutStep === 1 ? (
                     <div className="space-y-5 animate-slideIn">
                        <div>
-                          <label className="text-xs font-bold text-slate-500 uppercase ml-3 mb-2 block">Nama Lengkap</label>
+                          <label className="text-xs font-bold text-slate-500 uppercase ml-3 mb-2 block">Nama</label>
                           <input 
                             type="text" 
                             value={buyerForm.name}
                             onChange={e => setBuyerForm({...buyerForm, name: e.target.value})}
                             className={`w-full bg-slate-50 dark:bg-black border rounded-2xl p-4 outline-none focus:ring-4 focus:ring-cyan-500/20 transition-all font-medium ${formErrors.name ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-zinc-800 focus:border-cyan-500'}`}
-                            placeholder="Contoh: Budi Santoso"
+                            placeholder="Contoh: Fulan"
                           />
                           {formErrors.name && <p className="text-red-500 text-xs mt-2 ml-2 flex items-center gap-1 font-bold"><AlertCircle size={12}/> {formErrors.name}</p>}
                        </div>
@@ -832,7 +856,7 @@ export default function WuregStore() {
                               value={buyerForm.device_model}
                               onChange={e => setBuyerForm({...buyerForm, device_model: e.target.value})}
                               className={`w-full bg-white dark:bg-zinc-900 border rounded-2xl p-4 outline-none focus:border-blue-500 transition-all font-medium ${formErrors.device_model ? 'border-red-500' : 'border-blue-200 dark:border-blue-800'}`}
-                              placeholder="Android / iOS (Tipe HP)"
+                              placeholder="misal: Samsung Galaxy S26 Ultra"
                             />
                             {formErrors.device_model && <p className="text-red-500 text-xs mt-2 font-bold">{formErrors.device_model}</p>}
                          </div>
@@ -868,7 +892,6 @@ export default function WuregStore() {
                                    {selectedPayment === m.id && <CheckCircle className="text-cyan-500" size={24} fill="currentColor"/>}
                                 </div>
                                 
-                                {/* VA Display Logic (Req #2) */}
                                 {selectedPayment === m.id && (
                                    <div className="mt-4 pt-4 border-t border-slate-200 dark:border-white/10 animate-fadeIn">
                                       <p className="text-xs text-slate-500 mb-1 font-bold">Nomor Virtual Account / Tujuan:</p>
@@ -911,15 +934,18 @@ export default function WuregStore() {
         <style dangerouslySetInnerHTML={{__html: `
           @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
           @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+          @keyframes slideDown { from { opacity: 0; transform: scaleY(0.9); } to { opacity: 1; transform: scaleY(1); } }
           @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
           .animate-fadeIn { animation: fadeIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
           .animate-slideIn { animation: slideIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
+          .animate-slideDown { animation: slideDown 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
           .animate-gradient { background-size: 200% auto; animation: gradient 4s linear infinite; }
           .scrollbar-hide::-webkit-scrollbar { display: none; }
           .custom-scrollbar::-webkit-scrollbar { width: 6px; }
           .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
           .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
           .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; }
+          .content-visibility-auto { content-visibility: auto; contain-intrinsic-size: 1000px; }
         `}} />
       </div>
     </div>
