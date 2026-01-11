@@ -11,8 +11,9 @@ import {
 
 // --- 1. SETUP ENV & SUPABASE ---
 // Mengambil key dari .env.local agar aman
-const supabaseUrl = process.exports = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.exports = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
+// --- 1. SETUP ENV & SUPABASE ---
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
 
 const createSupabaseClient = (baseUrl: string, key: string) => {
   if (!baseUrl || !key) return null; // Safety check
