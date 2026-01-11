@@ -395,12 +395,12 @@ export default function WuregStore() {
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { setActivePage('home'); setIsContactOpen(false); }}>
               {/* Logo Update (Req #1) */}
               <img 
-                src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEgWdTPyX-LUR9dVkLa84Pv6yAAOj0XEJYcRkMLjq7l3YNRCNmmZGe9JJsGF-g-qodWLCGQ0i7zhkLmYEU1s0DEC6-T4R_jLfErvlaqIWMADei9Iw6WxOVnQE-T5O-YI4VvMeOcA6ejHCYYug-zGmyxq6qbxexoqDK1sQps0qAPNctymiZnN_ST44nS1JwI/s320/New%20Logo.png" 
+                src="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" 
                 alt="WuregStore Logo"
                 className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-cyan-500/30 group-hover:scale-110 transition-transform duration-300"
               />
               <span className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">
-                Wureg<span className="text-cyan-600 dark:text-cyan-400">Store</span>
+                Wureg<span className="text-blue-600 dark:text-blue-400">Store</span>
               </span>
             </div>
 
