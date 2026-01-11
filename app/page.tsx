@@ -285,11 +285,9 @@ Mohon segera diproses. Terima kasih!`;
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <div>
         <head>
         <link rel="shortcut icon" href="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" type="image/x-icon">
         </head>
-        </div>
         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
           {['All', 'Akun', 'Software', 'Games'].map(cat => (
             <button 
@@ -309,11 +307,10 @@ Mohon segera diproses. Terima kasih!`;
 
       {/* Product Grid */}
       {isLoading ? (
-        <div className="text-center py-20 text-zinc-500 animate-pulse">Memuat Produk dari Database...</div>
+        <div className="text-center py-20 text-zinc-500 animate-pulse">Memuat Produk</div>
       ) : filteredProducts.length === 0 ? (
         <div className="text-center py-20 text-zinc-500">
-            Produk tidak ditemukan atau Database Kosong.<br/>
-            <span className="text-xs text-zinc-400">Pastikan Anda telah menjalankan SQL Update untuk database.</span>
+            Produk tidak ditemukan.<br/>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -409,7 +406,7 @@ Mohon segera diproses. Terima kasih!`;
         <div className="flex justify-between items-end mb-6">
           <div>
             <h2 className="text-3xl font-bold text-zinc-800 dark:text-white">Staff Dashboard</h2>
-            <p className="text-zinc-500 dark:text-zinc-400">Laporan transaksi realtime (Supabase Connected).</p>
+            <p className="text-zinc-500 dark:text-zinc-400">Laporan transaksi realtime.</p>
           </div>
           <button 
             onClick={() => { setIsStaffLoggedIn(false); setTransactions([]); }}
@@ -500,9 +497,6 @@ Mohon segera diproses. Terima kasih!`;
               className="flex items-center gap-2 cursor-pointer" 
               onClick={() => { setActivePage('home'); setIsMenuOpen(false); }}
             >
-              <div className="w-8 h-8 bg-gradient-to-tr from-cyan-500 to-purple-600 rounded-lg flex items-center justify-center transform rotate-3">
-                <span className="font-bold text-white">W</span>
-              </div>
               <span className="text-xl font-bold tracking-tight text-zinc-900 dark:text-white">Wureg<span className="text-cyan-600 dark:text-cyan-400">Store</span></span>
             </div>
 
@@ -544,7 +538,7 @@ Mohon segera diproses. Terima kasih!`;
           {/* Mobile Menu Dropdown */}
           {isMenuOpen && (
             <div className="md:hidden bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-white/5 p-4 space-y-4 absolute w-full animate-slideIn shadow-lg">
-              <button onClick={() => { setActivePage('home'); setIsMenuOpen(false); }} className="block w-full text-left py-2 text-zinc-700 dark:text-zinc-300 font-medium">Home</button>
+              <button onClick={() => { setActivePage('home'); setIsMenuOpen(false); }} className="block w-full text-left py-2 text-zinc-700 dark:text-zinc-300 font-medium">Store</button>
               <button onClick={() => { setActivePage('staff'); setIsMenuOpen(false); }} className="block w-full text-left py-2 text-zinc-700 dark:text-zinc-300 font-medium">Staff Page</button>
               <button 
                 onClick={() => { setIsSosmedModalOpen(true); setIsMenuOpen(false); }}
@@ -574,7 +568,7 @@ Mohon segera diproses. Terima kasih!`;
               
               <div className="p-6 text-center">
                 <h3 className="text-xl font-bold mb-1 text-zinc-900 dark:text-white">Hubungi Admin</h3>
-                <p className="text-zinc-500 text-sm mb-6">Pilih platform media sosial kami:</p>
+                <p className="text-zinc-500 text-sm mb-6">Meida Sosial:</p>
                 
                 <div className="space-y-3">
                   {socialLinks.map((social) => (
@@ -662,7 +656,7 @@ Mohon segera diproses. Terima kasih!`;
                               className="w-full bg-zinc-50 dark:bg-zinc-950 border border-cyan-500/50 dark:border-cyan-900/50 rounded-lg p-3 text-sm text-zinc-900 dark:text-white focus:border-cyan-500 focus:outline-none transition-colors"
                               placeholder="Contoh: iPhone 13 / Samsung S23"
                             />
-                            <p className="text-[10px] text-zinc-500 mt-1">*Diperlukan untuk garansi & login akun.</p>
+                            <p className="text-[10px] text-zinc-500 mt-1">Diperlukan untuk garansi login akun.</p>
                           </div>
                       )}
 
@@ -737,7 +731,7 @@ Mohon segera diproses. Terima kasih!`;
                         onClick={handleCheckoutSubmit}
                         className="w-2/3 bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2"
                       >
-                        Konfirmasi WA <ShieldCheck size={18} />
+                        Konfirmasi ke WA <ShieldCheck size={18} />
                       </button>
                     </div>
                   </div>
