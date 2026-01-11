@@ -265,11 +265,11 @@ Mohon segera diproses. Terima kasih!`;
       {/* Hero Section */}
       <div className="text-center space-y-4 py-10 bg-gradient-to-b from-cyan-500/10 to-transparent rounded-2xl border border-zinc-200 dark:border-white/5">
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-purple-600">
-          FUTURE DIGITAL STORE
+          Wureg Store
         </h1>
         <p className="text-zinc-600 dark:text-zinc-400 max-w-lg mx-auto">
-          Penuhi kebutuhan digitalmu dengan cepat, aman, dan futuristik. 
-          Software, Akun Premium, semua ada di WuregStore.
+          Penuhi kebutuhan digitalmu dengan aman dan terpercaya. 
+          Software, Akun dan Games, ada di WuregStore.
         </p>
       </div>
 
@@ -285,9 +285,13 @@ Mohon segera diproses. Terima kasih!`;
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        
+        <div>
+        <head>
+        <link rel="shortcut icon" href="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" type="image/x-icon">
+        </head>
+        </div>
         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
-          {['All', 'Akun', 'Software', 'TopUp'].map(cat => (
+          {['All', 'Akun', 'Software', 'Games'].map(cat => (
             <button 
               key={cat}
               onClick={() => setSelectedCategory(cat)}
