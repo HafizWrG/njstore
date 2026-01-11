@@ -321,6 +321,7 @@ export default function WuregStore() {
             <div className="hidden md:flex items-center gap-6">
               <button onClick={() => setActivePage('home')} className={`text-sm font-medium transition-colors ${activePage === 'home' ? 'text-cyan-500' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>Store</button>
               <button onClick={() => setActivePage('staff')} className={`text-sm font-medium transition-colors ${activePage === 'staff' ? 'text-cyan-500' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>Staff</button>
+              <button onClick={() => {setIsSocialModalOpen(true); setIsMenuOpen(false)}} className="w-full text-left p-3 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5 flex items-center gap-2"><Globe size={18}/> Social Media</button>
               <div className="h-6 w-px bg-zinc-200 dark:bg-white/10"></div>
               <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all hover:scale-110 active:scale-95">
                 {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
@@ -528,7 +529,62 @@ export default function WuregStore() {
                                 ))}
                              </div>
                           </div>
+                         
+{/* --- SOCIAL MEDIA POPUP --- */}
+        {isSocialModalOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-fadeIn">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl border border-zinc-200 dark:border-white/10 shadow-2xl overflow-hidden animate-slideUp">
+              <div className="relative h-32 bg-gradient-to-br from-cyan-500 via-blue-600 to-purple-600">
+                <button 
+                  onClick={() => setIsSocialModalOpen(false)} 
+                  className="absolute top-4 right-4 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-colors"
+                >
+                  <X size={18}/>
+                </button>
+                <div className="absolute -bottom-10 left-6">
+                  <div className="w-20 h-20 rounded-2xl bg-white dark:bg-zinc-900 p-1 shadow-xl">
+                    <div className="w-full h-full rounded-xl bg-cyan-500 flex items-center justify-center text-white">
+                      <Zap size={32} fill="currentColor"/>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-14 pb-8 px-6">
+                <h3 className="text-2xl font-black text-zinc-900 dark:text-white">WuregStore Official</h3>
+                <p className="text-zinc-500 text-sm mb-6">Hubungi admin atau ikuti kami di sosial media untuk update promo terbaru.</p>
+                
+                <div className="grid grid-cols-2 gap-3 mb-8">
+                  <a href={`https://wa.me/${ADMIN_CONTACT}`} target="_blank" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-green-500/10 border border-green-500/20 hover:bg-green-500 hover:text-white transition-all group">
+                    <Phone className="text-green-500 group-hover:text-white mb-2" size={24}/>
+                    <span className="text-xs font-bold">WhatsApp</span>
+                  </a>
+                  <a href="#" target="_blank" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500 hover:text-white transition-all group">
+                    <Instagram className="text-pink-500 group-hover:text-white mb-2" size={24}/>
+                    <span className="text-xs font-bold">Instagram</span>
+                  </a>
+                  <a href="#" target="_blank" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500 hover:text-white transition-all group">
+                    <Send className="text-blue-500 group-hover:text-white mb-2" size={24}/>
+                    <span className="text-xs font-bold">Telegram</span>
+                  </a>
+                  <a href="#" target="_blank" className="flex flex-col items-center justify-center p-4 rounded-2xl bg-red-500/10 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all group">
+                    <Youtube className="text-red-500 group-hover:text-white mb-2" size={24}/>
+                    <span className="text-xs font-bold">YouTube</span>
+                  </a>
+                </div>
 
+                <button 
+                  onClick={() => setIsSocialModalOpen(false)}
+                  className="w-full py-4 bg-zinc-100 dark:bg-zinc-800 rounded-2xl font-bold text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Tutup
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+                         
                           {/* Payment Methods */}
                           <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-zinc-200 dark:border-white/10">
                              <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={18}/> Metode Pembayaran</h4>
