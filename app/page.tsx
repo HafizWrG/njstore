@@ -85,14 +85,14 @@ const ADMIN_CONTACT = "6281528483575";
 
 // --- HELPER FUNCTIONS ---
 const getIconByCategory = (category: string) => {
-  switch(category) {
-    case 'Streaming': return 'Monitor';
-    case 'Game': return 'Gamepad';
-    case 'Software': return 'Monitor';
-    case 'TopUp': return 'Zap'; 
-    case 'Akun': return 'Monitor';
-    default: return 'Smartphone';
-  }
+  const cat = category ? category.trim() : '';  
+  if (cat === 'Streaming') return 'Monitor';
+  if (cat === 'Game' || cat === 'Games') return 'Gamepad'; // Handles both Game and Games
+  if (cat === 'Software') return 'Monitor';
+  if (cat === 'TopUp') return 'Zap'; 
+  if (cat === 'Akun') return 'Smartphone';
+  
+  return 'Smartphone'; // Default
 };
 
 export default function WuregStore() {
