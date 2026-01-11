@@ -97,9 +97,9 @@ const SOCIALS = [
 
 // --- PAYMENT METHODS DATA ---
 const PAYMENT_METHODS = [
-  { id: 'DANA', name: 'DANA', va: '0815-2848-3575 (a.n Hafiz)', logo: 'D' },
-  { id: 'SHOPEEPAY', name: 'SHOPEEPAY', va: '0815-2848-3575 (a.n Hafiz)', logo: 'S' },
-  { id: 'BRI', name: 'BRI', va: '3321-0102-1234-539 (a.n Hafiz)', logo: 'B' }
+  { id: 'DANA', name: 'DANA', va: '0815-2848-3575 (a.n Wureg Store)', logo: 'D' },
+  { id: 'SHOPEEPAY', name: 'SHOPEEPAY', va: '0815-2848-3575 (a.n Wureg Store)', logo: 'S' },
+  { id: 'BRI', name: 'BRI', va: '3321-0102-1234-539 (a.n Wureg Store)', logo: 'B' }
 ];
 
 // --- HELPER COMPONENTS ---
@@ -488,12 +488,12 @@ export default function WuregStore() {
                   <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
                   
                   <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6">
-                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 animate-gradient">Digital Shop.</span>
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 animate-gradient">Digital Needs.</span>
                     <br/>
-                    <span className="text-slate-800 dark:text-white">Hafiz Wrg.</span>
+                    <span className="text-slate-800 dark:text-white">Solved.</span>
                   </h1>
                   <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto mb-8 text-lg font-medium leading-relaxed">
-                    Marketplace game, software, dan akun termurah dengan proses cepat dan terpercaya dengan garansi 1 minggu.
+                    Platform top up game, software, dan akun premium termurah dengan proses kilat dan terpercaya.
                   </p>
                   
                   <div className="max-w-lg mx-auto relative group">
@@ -827,13 +827,13 @@ export default function WuregStore() {
                   {checkoutStep === 1 ? (
                     <div className="space-y-5 animate-slideIn">
                        <div>
-                          <label className="text-xs font-bold text-slate-500 uppercase ml-3 mb-2 block">Nama</label>
+                          <label className="text-xs font-bold text-slate-500 uppercase ml-3 mb-2 block">Nama Lengkap</label>
                           <input 
                             type="text" 
                             value={buyerForm.name}
                             onChange={e => setBuyerForm({...buyerForm, name: e.target.value})}
                             className={`w-full bg-slate-50 dark:bg-black border rounded-2xl p-4 outline-none focus:ring-4 focus:ring-cyan-500/20 transition-all font-medium ${formErrors.name ? 'border-red-500 focus:border-red-500' : 'border-slate-200 dark:border-zinc-800 focus:border-cyan-500'}`}
-                            placeholder="Contoh: Fulan"
+                            placeholder="Contoh: Budi Santoso"
                           />
                           {formErrors.name && <p className="text-red-500 text-xs mt-2 ml-2 flex items-center gap-1 font-bold"><AlertCircle size={12}/> {formErrors.name}</p>}
                        </div>
@@ -856,7 +856,7 @@ export default function WuregStore() {
                               value={buyerForm.device_model}
                               onChange={e => setBuyerForm({...buyerForm, device_model: e.target.value})}
                               className={`w-full bg-white dark:bg-zinc-900 border rounded-2xl p-4 outline-none focus:border-blue-500 transition-all font-medium ${formErrors.device_model ? 'border-red-500' : 'border-blue-200 dark:border-blue-800'}`}
-                              placeholder="misal: Samsung Galaxy S26 Ultra"
+                              placeholder="Android / iOS (Tipe HP)"
                             />
                             {formErrors.device_model && <p className="text-red-500 text-xs mt-2 font-bold">{formErrors.device_model}</p>}
                          </div>
