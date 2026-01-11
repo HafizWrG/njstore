@@ -321,7 +321,7 @@ export default function WuregStore() {
             <div className="hidden md:flex items-center gap-6">
               <button onClick={() => setActivePage('home')} className={`text-sm font-medium transition-colors ${activePage === 'home' ? 'text-cyan-500' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>Store</button>
               <button onClick={() => setActivePage('staff')} className={`text-sm font-medium transition-colors ${activePage === 'staff' ? 'text-cyan-500' : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-300'}`}>Staff</button>
-              <button onClick={() => {setIsSocialModalOpen(true); setIsMenuOpen(false)}} className="w-full text-left p-3 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5 flex items-center gap-2"><Globe size={18}/> Social Media</button>
+              <button onClick={() => {isSocialModalOpen(true); setIsMenuOpen(false)}} className="w-full text-left p-3 rounded-lg hover:bg-zinc-100 dark:hover:bg-white/5 flex items-center gap-2"><Globe size={18}/> Social Media</button>
               <div className="h-6 w-px bg-zinc-200 dark:bg-white/10"></div>
               <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2 rounded-full bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-all hover:scale-110 active:scale-95">
                 {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
