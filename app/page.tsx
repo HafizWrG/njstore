@@ -285,9 +285,6 @@ Mohon segera diproses. Terima kasih!`;
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
-        <head>
-        <link rel="shortcut icon" href="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" type="image/x-icon">
-        </head>
         <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 scrollbar-hide">
           {['All', 'Akun', 'Software', 'Games'].map(cat => (
             <button 
