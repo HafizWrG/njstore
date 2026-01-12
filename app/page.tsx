@@ -9,7 +9,7 @@ import {
   Loader2, AlertCircle,
   Download, ExternalLink, Mail, Copy, AlignJustify,
   ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, 
-  ChevronLeft, Gamepad2, Ticket
+  ChevronLeft, Gamepad2, Ticket, AlertTriangle 
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
