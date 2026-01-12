@@ -8,7 +8,7 @@ import {
   Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3
+  ArrowUpDown, Plus, Trash2, Edit3, Package, BarChart3, List
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
@@ -114,6 +114,19 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
   </div>
 );
 
+// --- PRODUCT SKELETON ---
+const ProductSkeleton = () => (
+  <div className="bg-white/50 dark:bg-zinc-900/50 border border-white/20 dark:border-white/5 rounded-3xl p-5 flex flex-col gap-3 animate-pulse">
+    <div className="h-40 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-2xl w-full"></div>
+    <div className="h-4 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full w-3/4"></div>
+    <div className="h-3 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full w-1/2"></div>
+    <div className="flex justify-between mt-2">
+      <div className="h-5 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full w-1/3"></div>
+      <div className="h-8 w-8 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full"></div>
+    </div>
+  </div>
+);
+
 // --- MAIN COMPONENT ---
 export default function WuregStore() {
   const [activePage, setActivePage] = useState('home'); 
@@ -129,7 +142,7 @@ export default function WuregStore() {
   // Staff State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [staffPinInput, setStaffPinInput] = useState('');
-  const [activeAdminTab, setActiveAdminTab] = useState<'transactions' | 'products'>('transactions');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products'>('dashboard');
   const [reportFilter, setReportFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
   const [adminSearchTrx, setAdminSearchTrx] = useState('');
   const [isReportLoading, setIsReportLoading] = useState(false);
@@ -249,6 +262,15 @@ export default function WuregStore() {
      } catch(err) { showToast("Gagal hapus", "error"); }
   };
 
+  const getIconByCategory = (category: string) => {
+    const cat = category ? category.trim() : '';
+    if (cat === 'Streaming') return 'Monitor';
+    if (cat === 'Game' || cat === 'Games') return 'Gamepad';
+    if (cat === 'Software') return 'Monitor';
+    if (cat === 'TopUp') return 'Zap'; 
+    return 'Smartphone';
+  };
+
   // --- VALIDATION & CHECKOUT ---
   const validateForm = () => {
     let isValid = true;
@@ -313,10 +335,25 @@ export default function WuregStore() {
     (t.id || "").toString().includes(adminSearchTrx)
   ), [transactions, adminSearchTrx]);
 
-  const { totalRevenue, successCount } = useMemo(() => ({
-    totalRevenue: transactions.reduce((acc, curr) => acc + (curr.price || 0), 0),
-    successCount: transactions.filter(t => t.status === 'Selesai').length
-  }), [transactions]);
+  const { totalRevenue, successCount, topProducts, paymentCount } = useMemo(() => {
+    const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
+    const success = transactions.filter(t => t.status === 'Selesai').length;
+    
+    // Top Products
+    const pCount = transactions.reduce((acc: any, curr) => {
+      acc[curr.product_name] = (acc[curr.product_name] || 0) + 1;
+      return acc;
+    }, {});
+    const top = Object.entries(pCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
+    
+    // Payment Method Stats
+    const payCount = transactions.reduce((acc: any, curr) => {
+      acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1;
+      return acc;
+    }, {});
+
+    return { totalRevenue, successCount, topProducts: top, paymentCount: payCount };
+  }, [transactions]);
 
   if (!mounted) return null;
 
@@ -374,17 +411,24 @@ export default function WuregStore() {
                    <div className="relative"><select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-white/50 dark:border-white/10 font-bold py-2 px-4 rounded-full focus:outline-none cursor-pointer"><option value="default">✨ Rekomendasi</option><option value="price_low">💰 Termurah</option><option value="price_high">💎 Termahal</option></select></div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                   {filteredProducts.map(product => (
-                     <div key={product.id} onClick={() => { setSelectedProduct(product); setCheckoutStep(1); }} className="group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 cursor-pointer hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
-                         <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
-                            {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center font-black text-4xl opacity-20">{product.name.slice(0,2)}</div>}
-                         </div>
-                         <h3 className="font-bold text-lg line-clamp-1">{product.name}</h3>
-                         <div className="flex justify-between items-center mt-2"><p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p><div className="bg-slate-100 dark:bg-white/5 p-2 rounded-full"><ShoppingCart size={18}/></div></div>
-                     </div>
-                   ))}
-                </div>
+                {isLoading ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">{[1,2,3,4].map(i=><ProductSkeleton key={i}/>)}</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                     {filteredProducts.map(product => (
+                       <div key={product.id} onClick={() => { setSelectedProduct(product); setCheckoutStep(1); }} className="group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 cursor-pointer hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 relative overflow-hidden">
+                           <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
+                              {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center font-black text-4xl opacity-20">{product.name.slice(0,2)}</div>}
+                              <div className="absolute top-3 right-3 bg-white/80 dark:bg-black/60 p-2 rounded-xl backdrop-blur-md">
+                                 {product.icon === 'Gamepad' ? <Gamepad size={18} className="text-purple-500"/> : product.icon === 'Zap' ? <Zap size={18} className="text-yellow-500"/> : <Monitor size={18} className="text-blue-500"/>}
+                              </div>
+                           </div>
+                           <h3 className="font-bold text-lg line-clamp-1">{product.name}</h3>
+                           <div className="flex justify-between items-center mt-2"><p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p><div className="bg-slate-100 dark:bg-white/5 p-2 rounded-full"><ShoppingCart size={18}/></div></div>
+                       </div>
+                     ))}
+                  </div>
+                )}
              </div>
           ) : (
             // --- STAFF PAGE ---
@@ -401,16 +445,65 @@ export default function WuregStore() {
                ) : (
                  <div className="space-y-6">
                     <div className="flex flex-col md:flex-row justify-between items-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
-                       <div className="flex gap-2 p-1 bg-slate-100 dark:bg-black/40 rounded-full">
-                          <button onClick={() => setActiveAdminTab('transactions')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
-                          <button onClick={() => setActiveAdminTab('products')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Produk</button>
+                       <div className="flex gap-2 p-1 bg-slate-100 dark:bg-black/40 rounded-full overflow-x-auto">
+                          <button onClick={() => setActiveAdminTab('dashboard')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all whitespace-nowrap ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
+                          <button onClick={() => setActiveAdminTab('transactions')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all whitespace-nowrap ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
+                          <button onClick={() => setActiveAdminTab('products')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all whitespace-nowrap ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Produk</button>
                        </div>
                        <button onClick={()=>setIsStaffLoggedIn(false)} className="px-4 py-2 bg-red-50 text-red-500 rounded-full font-bold text-sm hover:bg-red-100 flex items-center gap-2"><LogOut size={16}/> Logout</button>
                     </div>
 
-                    {activeAdminTab === 'transactions' ? (
+                    {activeAdminTab === 'dashboard' ? (
+                       <div className="space-y-6 animate-slideIn">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                             <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-3xl text-white shadow-lg"><h3 className="text-3xl font-black">Rp {totalRevenue.toLocaleString()}</h3><p className="opacity-80">Total Omzet</p></div>
+                             <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black">{transactions.length}</h3><p className="text-slate-500">Total Order</p></div>
+                             <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black text-green-500">{successCount}</h3><p className="text-slate-500">Sukses</p></div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                             {/* Top Products */}
+                             <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
+                                <h4 className="font-bold mb-4 flex items-center gap-2"><Star size={20} className="text-yellow-500"/> Produk Terlaris</h4>
+                                <div className="space-y-3">
+                                   {topProducts.length === 0 ? <p className="text-slate-500">Belum ada data.</p> : topProducts.map(([name, count]: any, idx: number) => (
+                                     <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-white/5 rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                           <div className="font-black text-slate-300">#{idx+1}</div>
+                                           <span className="font-bold">{name}</span>
+                                        </div>
+                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-bold">{count}x</span>
+                                     </div>
+                                   ))}
+                                </div>
+                             </div>
+
+                             {/* Payment Stats */}
+                             <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
+                                <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={20} className="text-blue-500"/> Metode Pembayaran</h4>
+                                <div className="space-y-4">
+                                   {Object.entries(paymentCount).map(([method, count]: any) => (
+                                      <div key={method}>
+                                         <div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div>
+                                         <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div></div>
+                                      </div>
+                                   ))}
+                                </div>
+                             </div>
+                          </div>
+                       </div>
+                    ) : activeAdminTab === 'transactions' ? (
                       <div className="space-y-6 animate-slideIn">
                           <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
+                             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                                <div className="flex gap-2">
+                                   {['today', 'week', 'all'].map(f => (
+                                      <button key={f} onClick={() => setReportFilter(f as any)} className={`px-4 py-1.5 rounded-full text-xs font-bold border ${reportFilter === f ? 'bg-cyan-500 text-white border-transparent' : 'bg-transparent border-slate-300 dark:border-white/20'}`}>{f.toUpperCase()}</button>
+                                   ))}
+                                   <button onClick={fetchFilteredTransactions} className="p-1.5 bg-slate-100 dark:bg-white/10 rounded-full"><RefreshCw size={14}/></button>
+                                </div>
+                                <input type="text" placeholder="Cari ID / Nama / Produk..." className="bg-slate-50 dark:bg-black/30 px-4 py-2 rounded-xl text-sm border-none focus:ring-2 ring-cyan-500/50" value={adminSearchTrx} onChange={(e) => setAdminSearchTrx(e.target.value)}/>
+                             </div>
                              <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left">
                                    <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5">
