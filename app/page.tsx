@@ -5,10 +5,10 @@ import {
   Menu, X, Search, ShoppingCart, LogOut, 
   Smartphone, Monitor, Gamepad, CreditCard, CheckCircle, 
   ChevronRight, ShieldCheck, Zap,
-  Sun, Moon, Loader2, AlertCircle,
+  Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  Filter, ArrowUpDown, Laptop
+  ArrowUpDown
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE (Custom Client) ---
@@ -128,31 +128,6 @@ const ProductSkeleton = () => (
 
 // --- MAIN COMPONENT ---
 export default function WuregStore() {
-  // --- ADVANCED THEME SYSTEM START ---
-  // Initialize theme from localStorage or system preference
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
-  
-  useEffect(() => {
-    // Check localStorage on mount
-    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system';
-    if (savedTheme) setTheme(savedTheme);
-  }, []);
-
-  useEffect(() => {
-    // Apply theme to HTML root
-    const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
-
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.add(systemTheme);
-    } else {
-      root.classList.add(theme);
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
-  // --- ADVANCED THEME SYSTEM END ---
-
   const [activePage, setActivePage] = useState('home'); 
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -173,7 +148,7 @@ export default function WuregStore() {
   // Checkout State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [sortBy, setSortBy] = useState<'default' | 'price_low' | 'price_high' | 'name'>('default'); // New Sort State
+  const [sortBy, setSortBy] = useState<'default' | 'price_low' | 'price_high' | 'name'>('default');
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [checkoutStep, setCheckoutStep] = useState(1); 
   const [selectedPayment, setSelectedPayment] = useState('');
@@ -355,7 +330,6 @@ export default function WuregStore() {
     } catch (err: any) { showToast("Error login", "error"); }
   };
 
-  // --- OPTIMIZATION START (Req #2): Memoize expensive calculations ---
   const { totalRevenue, successCount, topProducts, paymentCount } = useMemo(() => {
     const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
     const success = transactions.filter(t => t.status === 'Selesai').length;
@@ -373,7 +347,6 @@ export default function WuregStore() {
 
     return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount };
   }, [transactions]);
-  // --- OPTIMIZATION END ---
 
   const downloadCSV = () => {
     const headers = "ID,Date,Product,Price,Buyer Name,Buyer Contact,Device Model,Method,Status\n";
@@ -389,7 +362,6 @@ export default function WuregStore() {
     a.click();
   };
 
-  // --- ADVANCED FILTERING & SORTING ---
   const filteredProducts = useMemo(() => {
     let result = products.filter(p => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -415,66 +387,48 @@ export default function WuregStore() {
     else setIsContactOpen(false);
   }
 
-  // --- THEME TOGGLER FUNCTION ---
-  const toggleTheme = () => {
-    if (theme === 'light') setTheme('dark');
-    else if (theme === 'dark') setTheme('system');
-    else setTheme('light');
-  };
-
-  const getThemeIcon = () => {
-    if (theme === 'light') return <Sun size={20} className="text-yellow-500" fill="currentColor"/>;
-    if (theme === 'dark') return <Moon size={20} className="text-indigo-500" fill="currentColor"/>;
-    return <Laptop size={20} className="text-slate-500" />;
-  };
-
   if (!mounted) return null;
 
   return (
     <div>
-      <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 transition-colors duration-500 ease-in-out">
-        {/* Subtle Background Gradients - Will-change for GPU optimization */}
-        <div className="fixed inset-0 z-0 pointer-events-none">
-           <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-400/20 dark:bg-blue-600/10 rounded-full blur-[120px] animate-pulse will-change-transform"></div>
-           <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-400/20 dark:bg-purple-600/10 rounded-full blur-[120px] animate-pulse delay-1000 will-change-transform"></div>
+      <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 transition-colors duration-500 ease-in-out relative overflow-hidden">
+        
+        {/* --- 1. COLORFUL ANIMATED BACKGROUND BLOBS --- */}
+        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+           {/* Blob 1: Purple/Pink */}
+           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-500/30 rounded-full blur-[100px] animate-pulse mix-blend-multiply filter blur-3xl opacity-70 will-change-transform"></div>
+           {/* Blob 2: Cyan/Blue */}
+           <div className="absolute top-[20%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/30 rounded-full blur-[100px] animate-pulse delay-700 mix-blend-multiply filter blur-3xl opacity-70 will-change-transform"></div>
+           {/* Blob 3: Pink/Yellow (Bottom) */}
+           <div className="absolute bottom-[-10%] left-[20%] w-[50%] h-[50%] bg-pink-500/30 rounded-full blur-[100px] animate-pulse delay-1000 mix-blend-multiply filter blur-3xl opacity-70 will-change-transform"></div>
         </div>
         
         {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-        {/* --- NAVBAR --- */}
-        <nav className="fixed w-full z-50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-xl border-b border-white/20 dark:border-white/5 shadow-sm transition-colors duration-300">
-          <div className="container mx-auto px-4 h-20 flex items-center justify-between">
+        {/* --- 2. NAVBAR MELAYANG (FLOATING GLASS) --- */}
+        <nav className="fixed top-5 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl z-50 bg-white/30 dark:bg-black/30 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-lg rounded-full transition-all duration-300">
+          <div className="px-6 h-16 flex items-center justify-between">
             <div className="flex items-center gap-3 cursor-pointer group" onClick={() => { setActivePage('home'); setIsContactOpen(false); }}>
               <img 
                 src="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" 
                 alt="WuregStore Logo"
-                className="w-10 h-10 rounded-xl object-cover shadow-lg shadow-cyan-500/30 group-hover:scale-110 transition-transform duration-300"
+                className="w-9 h-9 rounded-xl object-cover shadow-lg shadow-cyan-500/30 group-hover:scale-110 transition-transform duration-300"
               />
-              <span className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">
+              <span className="text-xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">
                 Wureg<span className="text-blue-600 dark:text-blue-400">Store</span>
               </span>
             </div>
 
             <div className="flex items-center gap-4">
               {/* Desktop Menu */}
-              <button onClick={() => setActivePage('home')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'}`}>Store</button>
-              <button onClick={() => setActivePage('staff')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 ${activePage === 'staff' ? 'bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white'}`}>Staff</button>
+              <button onClick={() => setActivePage('home')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 ${activePage === 'home' ? 'bg-white/80 dark:bg-white/10 text-cyan-600 dark:text-cyan-400 shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'}`}>Store</button>
+              <button onClick={() => setActivePage('staff')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all duration-300 ${activePage === 'staff' ? 'bg-white/80 dark:bg-white/10 text-cyan-600 dark:text-cyan-400 shadow-sm' : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'}`}>Staff</button>
               
-              <div className="h-6 w-px bg-slate-200 dark:bg-white/10 hidden md:block"></div>
+              <div className="h-6 w-px bg-slate-300/50 dark:bg-white/10 hidden md:block"></div>
               
-              {/* ADVANCED THEME TOGGLE */}
-              <button 
-                onClick={toggleTheme} 
-                className="p-2.5 rounded-full bg-slate-100 dark:bg-zinc-800/50 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all active:scale-95 border border-transparent hover:border-slate-200 dark:hover:border-zinc-700 relative group"
-                title={`Current theme: ${theme}`}
-              >
-                {getThemeIcon()}
-                <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 text-xs bg-black text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none capitalize">{theme}</span>
-              </button>
-
               {/* Desktop Contact Button */}
-              <button onClick={() => setIsContactOpen(true)} className="hidden md:flex items-center gap-2 bg-gradient-to-r from-slate-900 to-slate-800 dark:from-white dark:to-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-full text-sm font-bold hover:shadow-lg hover:shadow-slate-500/20 hover:-translate-y-0.5 transition-all">
-                 <Menu size={18}/> <span>Contact</span>
+              <button onClick={() => setIsContactOpen(true)} className="hidden md:flex items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-2 rounded-full text-sm font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all">
+                 <Menu size={16}/> <span>Contact</span>
               </button>
 
               {/* Mobile Hamburger */}
@@ -484,16 +438,16 @@ export default function WuregStore() {
             </div>
           </div>
 
-          {/* Mobile Dropdown Menu with Animation */}
+          {/* Mobile Dropdown Menu Attached to Floating Nav */}
           {isMobileMenuOpen && (
-            <div className="md:hidden absolute top-20 left-0 w-full bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-white/10 p-4 flex flex-col gap-2 shadow-xl animate-slideDown origin-top z-40">
-               <button onClick={() => handleMobileNav('home')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 transition-colors ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
+            <div className="md:hidden absolute top-20 left-0 w-full bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md rounded-3xl border border-white/20 p-2 flex flex-col gap-1 shadow-xl animate-slideDown origin-top z-40">
+               <button onClick={() => handleMobileNav('home')} className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 transition-colors ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
                   <ShoppingCart size={20}/> Store
                </button>
-               <button onClick={() => handleMobileNav('staff')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 transition-colors ${activePage === 'staff' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
+               <button onClick={() => handleMobileNav('staff')} className={`p-3 rounded-xl text-left font-bold flex items-center gap-3 transition-colors ${activePage === 'staff' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
                   <ShieldCheck size={20}/> Staff Area
                </button>
-               <button onClick={() => handleMobileNav('contact')} className="p-4 rounded-xl text-left font-bold flex items-center gap-3 text-slate-600 dark:text-slate-400 transition-colors">
+               <button onClick={() => handleMobileNav('contact')} className="p-3 rounded-xl text-left font-bold flex items-center gap-3 text-slate-600 dark:text-slate-400 transition-colors">
                   <Mail size={20}/> Contact Admin
                </button>
             </div>
@@ -503,7 +457,7 @@ export default function WuregStore() {
         {/* --- ADMIN CONTACT POPUP --- */}
         {isContactOpen && (
            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn" onClick={(e) => {if(e.target === e.currentTarget) setIsContactOpen(false)}}>
-              <div className="bg-white dark:bg-zinc-900 w-full max-w-sm rounded-[2rem] border border-white/20 dark:border-white/10 shadow-2xl overflow-hidden relative transform transition-all scale-100">
+              <div className="bg-white/90 dark:bg-zinc-900/90 w-full max-w-sm rounded-[2rem] border border-white/40 dark:border-white/10 shadow-2xl overflow-hidden relative transform transition-all scale-100 backdrop-blur-xl">
                  <button onClick={() => setIsContactOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-zinc-800 rounded-full hover:bg-slate-200 transition text-slate-500"><X size={20}/></button>
                  
                  <div className="p-8 text-center">
@@ -533,26 +487,24 @@ export default function WuregStore() {
            </div>
         )}
 
-        <main className="container mx-auto px-4 pt-32 pb-20 min-h-screen relative z-10">
+        <main className="container mx-auto px-4 pt-36 pb-20 min-h-screen relative z-10">
           {activePage === 'home' ? (
             <div className="space-y-12 animate-fadeIn">
                {/* --- HERO & SEARCH --- */}
-               <div className="text-center py-16 px-4 rounded-[3rem] border border-white/40 dark:border-white/5 bg-white/40 dark:bg-zinc-900/40 backdrop-blur-sm shadow-xl shadow-indigo-500/5 relative overflow-hidden will-change-transform">
-                  {/* Decorative Elements */}
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-50"></div>
+               <div className="text-center py-16 px-4 rounded-[3rem] border border-white/50 dark:border-white/10 bg-white/30 dark:bg-zinc-900/30 backdrop-blur-md shadow-xl relative overflow-hidden will-change-transform">
                   
-                  <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6">
-                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 animate-gradient">Digital Needs.</span>
+                  <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 drop-shadow-sm">
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 via-blue-600 to-purple-600 dark:from-cyan-400 dark:via-blue-400 dark:to-purple-400 animate-gradient">Digital Needs.</span>
                     <br/>
                     <span className="text-slate-800 dark:text-white">Solved.</span>
                   </h1>
-                  <p className="text-slate-500 dark:text-slate-400 max-w-xl mx-auto mb-8 text-lg font-medium leading-relaxed">
+                  <p className="text-slate-600 dark:text-slate-300 max-w-xl mx-auto mb-8 text-lg font-medium leading-relaxed">
                     Platform top up game, software, dan akun premium termurah dengan proses kilat dan terpercaya.
                   </p>
                   
                   <div className="max-w-lg mx-auto relative group">
                     <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full blur opacity-30 group-hover:opacity-60 transition duration-1000 group-hover:duration-200"></div>
-                    <div className="relative flex items-center bg-white dark:bg-black rounded-full p-1.5 ring-1 ring-black/5 dark:ring-white/10 shadow-2xl">
+                    <div className="relative flex items-center bg-white/90 dark:bg-black/90 rounded-full p-1.5 ring-1 ring-black/5 dark:ring-white/10 shadow-2xl backdrop-blur-xl">
                         <div className="pl-4 text-slate-400"><Search size={22}/></div>
                         <input 
                           type="text" 
@@ -575,10 +527,10 @@ export default function WuregStore() {
                      <button 
                        key={cat}
                        onClick={() => setSelectedCategory(cat)}
-                       className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 border whitespace-nowrap ${
+                       className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 border whitespace-nowrap backdrop-blur-md ${
                          selectedCategory === cat 
                          ? 'bg-slate-900 dark:bg-white text-white dark:text-black border-transparent shadow-lg scale-105' 
-                         : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-300'
+                         : 'bg-white/50 dark:bg-zinc-900/50 border-white/50 dark:border-white/10 text-slate-700 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-white/10'
                        }`}
                      >
                        {cat}
@@ -591,7 +543,7 @@ export default function WuregStore() {
                     <select 
                       value={sortBy}
                       onChange={(e) => setSortBy(e.target.value as any)}
-                      className="appearance-none w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 font-bold py-2 px-4 pr-10 rounded-full focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
+                      className="appearance-none w-full bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-white/50 dark:border-white/10 text-slate-700 dark:text-slate-300 font-bold py-2 px-4 pr-10 rounded-full focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
                     >
                       <option value="default">✨ Rekomendasi</option>
                       <option value="price_low">💰 Harga Terendah</option>
@@ -617,9 +569,9 @@ export default function WuregStore() {
                      <div 
                        key={product.id} 
                        onClick={() => { setSelectedProduct(product); setCheckoutStep(1); }}
-                       className="group bg-white dark:bg-zinc-900/60 backdrop-blur-md border border-white/40 dark:border-white/5 rounded-3xl p-4 cursor-pointer hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/10 dark:hover:shadow-cyan-900/20 transition-all duration-500 hover:-translate-y-2 relative overflow-hidden"
+                       className="group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 cursor-pointer hover:border-cyan-500/50 hover:shadow-2xl hover:shadow-cyan-500/10 dark:hover:shadow-cyan-900/20 transition-all duration-500 hover:-translate-y-2 relative overflow-hidden"
                      >
-                         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/0 via-transparent to-purple-500/0 group-hover:from-cyan-500/5 group-hover:to-purple-500/5 transition-colors duration-500"></div>
+                         <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/0 via-transparent to-purple-500/0 group-hover:from-cyan-500/10 group-hover:to-purple-500/10 transition-colors duration-500"></div>
                          
                          <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
                             {product.image_url ? (
@@ -678,7 +630,7 @@ export default function WuregStore() {
                ) : (
                  <div className="space-y-8">
                     {/* Header Dashboard */}
-                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white dark:bg-zinc-900 p-8 rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
                        <div>
                           <h2 className="text-4xl font-black text-slate-900 dark:text-white mb-2">Laporan Penjualan</h2>
                           <p className="text-slate-500 font-medium">Ringkasan aktivitas transaksi WuregStore.</p>
@@ -707,10 +659,10 @@ export default function WuregStore() {
                           <button 
                             key={f.id}
                             onClick={() => setReportFilter(f.id as any)}
-                            className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold border transition-all duration-300 ${
+                            className={`flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold border transition-all duration-300 backdrop-blur-md ${
                               reportFilter === f.id
                               ? 'bg-gradient-to-r from-cyan-500 to-blue-500 border-transparent text-white shadow-lg shadow-blue-500/25'
-                              : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-500 hover:bg-slate-50 dark:hover:bg-white/5'
+                              : 'bg-white/60 dark:bg-zinc-900/60 border-white/50 dark:border-white/10 text-slate-500 hover:bg-white/80 dark:hover:bg-white/10'
                             }`}
                           >
                              <Calendar size={16}/> {f.label}
@@ -733,7 +685,7 @@ export default function WuregStore() {
                            <p className="text-cyan-100 font-medium">Total Omzet Penjualan</p>
                         </div>
 
-                        <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-sm relative group">
+                        <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm relative group">
                            <div className="absolute top-0 right-0 w-24 h-24 bg-purple-500/5 rounded-full blur-xl -mr-8 -mt-8 group-hover:bg-purple-500/10 transition-colors"></div>
                            <div className="flex justify-between items-start mb-6">
                               <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-2xl text-purple-600 dark:text-purple-400"><ShoppingCart size={28}/></div>
@@ -742,7 +694,7 @@ export default function WuregStore() {
                            <p className="text-slate-500 font-medium">Total Transaksi</p>
                         </div>
 
-                        <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-sm relative group">
+                        <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-8 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm relative group">
                            <div className="absolute top-0 right-0 w-24 h-24 bg-green-500/5 rounded-full blur-xl -mr-8 -mt-8 group-hover:bg-green-500/10 transition-colors"></div>
                            <div className="flex justify-between items-start mb-6">
                               <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-2xl text-green-600 dark:text-green-400"><CheckCircle size={28}/></div>
@@ -758,7 +710,7 @@ export default function WuregStore() {
                        {/* Kiri: Statistik */}
                        <div className="lg:col-span-1 space-y-8">
                           {/* Top Products */}
-                          <div className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-sm">
+                          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
                              <h4 className="font-bold mb-6 flex items-center gap-3 text-lg"><Star size={20} className="text-yellow-500" fill="currentColor"/> Top Produk</h4>
                              <div className="space-y-4">
                                 {topProducts.length === 0 ? <p className="text-sm text-slate-500">Belum ada data.</p> : topProducts.map(([name, count]: any, idx: number) => (
@@ -778,7 +730,7 @@ export default function WuregStore() {
                           </div>
                           
                           {/* Payment Methods */}
-                          <div className="bg-white dark:bg-zinc-900 p-6 rounded-[2rem] border border-slate-200 dark:border-white/10 shadow-sm">
+                          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
                              <h4 className="font-bold mb-6 flex items-center gap-3 text-lg"><CreditCard size={20} className="text-blue-500"/> Metode</h4>
                              <div className="space-y-4">
                                 {Object.entries(paymentCount).map(([method, count]: any) => (
@@ -797,7 +749,7 @@ export default function WuregStore() {
                        </div>
 
                        {/* Kanan: Tabel Riwayat */}
-                       <div className="lg:col-span-3 bg-white dark:bg-zinc-900 rounded-[2rem] border border-slate-200 dark:border-white/10 overflow-hidden flex flex-col shadow-sm">
+                       <div className="lg:col-span-3 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl rounded-[2rem] border border-white/50 dark:border-white/10 overflow-hidden flex flex-col shadow-sm">
                           <div className="p-6 border-b border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 flex justify-between items-center backdrop-blur-sm">
                              <h4 className="font-bold text-lg">Riwayat Transaksi</h4>
                              <span className="text-xs font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-3 py-1 rounded-full">Live Data</span>
@@ -872,7 +824,7 @@ export default function WuregStore() {
         {/* --- CHECKOUT MODAL --- */}
         {selectedProduct && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 animate-fadeIn">
-            <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-[2.5rem] border border-white/20 dark:border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden relative">
+            <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl w-full max-w-lg rounded-[2.5rem] border border-white/40 dark:border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden relative">
                <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md z-10">
                   <div>
                     <h3 className="font-black text-xl text-slate-900 dark:text-white">Checkout</h3>
