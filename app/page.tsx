@@ -7,7 +7,8 @@ import {
   ChevronRight, ShieldCheck, Zap,
   Sun, Moon, Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
-  RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify
+  RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
+  Filter, ArrowUpDown, Laptop
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE (Custom Client) ---
@@ -127,10 +128,34 @@ const ProductSkeleton = () => (
 
 // --- MAIN COMPONENT ---
 export default function WuregStore() {
+  // --- ADVANCED THEME SYSTEM START ---
+  // Initialize theme from localStorage or system preference
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('system');
+  
+  useEffect(() => {
+    // Check localStorage on mount
+    const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | 'system';
+    if (savedTheme) setTheme(savedTheme);
+  }, []);
+
+  useEffect(() => {
+    // Apply theme to HTML root
+    const root = window.document.documentElement;
+    root.classList.remove('light', 'dark');
+
+    if (theme === 'system') {
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      root.classList.add(systemTheme);
+    } else {
+      root.classList.add(theme);
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+  // --- ADVANCED THEME SYSTEM END ---
+
   const [activePage, setActivePage] = useState('home'); 
   const [isContactOpen, setIsContactOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // New state for mobile menu
-  const [isDarkMode, setIsDarkMode] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
 
   // Data State
@@ -148,10 +173,11 @@ export default function WuregStore() {
   // Checkout State
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [sortBy, setSortBy] = useState<'default' | 'price_low' | 'price_high' | 'name'>('default'); // New Sort State
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [checkoutStep, setCheckoutStep] = useState(1); 
   const [selectedPayment, setSelectedPayment] = useState('');
-  
+   
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
   const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -363,15 +389,24 @@ export default function WuregStore() {
     a.click();
   };
 
-  // --- OPTIMIZATION START (Req #2): Memoize product filtering ---
+  // --- ADVANCED FILTERING & SORTING ---
   const filteredProducts = useMemo(() => {
-    return products.filter(p => {
+    let result = products.filter(p => {
       const matchSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchCat = selectedCategory === 'All' || p.category === selectedCategory || (selectedCategory === 'Game' && p.category === 'Games');
       return matchSearch && matchCat;
     });
-  }, [products, searchQuery, selectedCategory]);
-  // --- OPTIMIZATION END ---
+
+    if (sortBy === 'price_low') {
+      result.sort((a, b) => a.price - b.price);
+    } else if (sortBy === 'price_high') {
+      result.sort((a, b) => b.price - a.price);
+    } else if (sortBy === 'name') {
+      result.sort((a, b) => a.name.localeCompare(b.name));
+    }
+    
+    return result;
+  }, [products, searchQuery, selectedCategory, sortBy]);
 
   const handleMobileNav = (page: string) => {
     setActivePage(page);
@@ -380,10 +415,23 @@ export default function WuregStore() {
     else setIsContactOpen(false);
   }
 
+  // --- THEME TOGGLER FUNCTION ---
+  const toggleTheme = () => {
+    if (theme === 'light') setTheme('dark');
+    else if (theme === 'dark') setTheme('system');
+    else setTheme('light');
+  };
+
+  const getThemeIcon = () => {
+    if (theme === 'light') return <Sun size={20} className="text-yellow-500" fill="currentColor"/>;
+    if (theme === 'dark') return <Moon size={20} className="text-indigo-500" fill="currentColor"/>;
+    return <Laptop size={20} className="text-slate-500" />;
+  };
+
   if (!mounted) return null;
 
   return (
-    <div className={isDarkMode ? 'dark' : ''}>
+    <div>
       <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-slate-100 font-sans selection:bg-indigo-500/30 transition-colors duration-500 ease-in-out">
         {/* Subtle Background Gradients - Will-change for GPU optimization */}
         <div className="fixed inset-0 z-0 pointer-events-none">
@@ -414,8 +462,14 @@ export default function WuregStore() {
               
               <div className="h-6 w-px bg-slate-200 dark:bg-white/10 hidden md:block"></div>
               
-              <button onClick={() => setIsDarkMode(!isDarkMode)} className="p-2.5 rounded-full bg-slate-100 dark:bg-zinc-800/50 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all hover:rotate-12 active:scale-95 border border-transparent hover:border-slate-200 dark:hover:border-zinc-700">
-                {isDarkMode ? <Sun size={20} className="text-yellow-400" fill="currentColor"/> : <Moon size={20} className="text-indigo-500" fill="currentColor"/>}
+              {/* ADVANCED THEME TOGGLE */}
+              <button 
+                onClick={toggleTheme} 
+                className="p-2.5 rounded-full bg-slate-100 dark:bg-zinc-800/50 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-zinc-700 transition-all active:scale-95 border border-transparent hover:border-slate-200 dark:hover:border-zinc-700 relative group"
+                title={`Current theme: ${theme}`}
+              >
+                {getThemeIcon()}
+                <span className="absolute top-full mt-2 left-1/2 -translate-x-1/2 text-xs bg-black text-white px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none capitalize">{theme}</span>
               </button>
 
               {/* Desktop Contact Button */}
@@ -423,23 +477,23 @@ export default function WuregStore() {
                  <Menu size={18}/> <span>Contact</span>
               </button>
 
-              {/* Mobile Hamburger (Req #1) */}
+              {/* Mobile Hamburger */}
               <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 text-slate-800 dark:text-white">
                 {isMobileMenuOpen ? <X size={24} /> : <AlignJustify size={24} />}
               </button>
             </div>
           </div>
 
-          {/* Mobile Dropdown Menu (Req #1) */}
+          {/* Mobile Dropdown Menu with Animation */}
           {isMobileMenuOpen && (
-            <div className="md:hidden absolute top-20 left-0 w-full bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-white/10 p-4 flex flex-col gap-2 shadow-xl animate-slideDown origin-top">
-               <button onClick={() => handleMobileNav('home')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
+            <div className="md:hidden absolute top-20 left-0 w-full bg-white dark:bg-zinc-950 border-b border-slate-200 dark:border-white/10 p-4 flex flex-col gap-2 shadow-xl animate-slideDown origin-top z-40">
+               <button onClick={() => handleMobileNav('home')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 transition-colors ${activePage === 'home' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
                   <ShoppingCart size={20}/> Store
                </button>
-               <button onClick={() => handleMobileNav('staff')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 ${activePage === 'staff' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
+               <button onClick={() => handleMobileNav('staff')} className={`p-4 rounded-xl text-left font-bold flex items-center gap-3 transition-colors ${activePage === 'staff' ? 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-400' : 'text-slate-600 dark:text-slate-400'}`}>
                   <ShieldCheck size={20}/> Staff Area
                </button>
-               <button onClick={() => handleMobileNav('contact')} className="p-4 rounded-xl text-left font-bold flex items-center gap-3 text-slate-600 dark:text-slate-400">
+               <button onClick={() => handleMobileNav('contact')} className="p-4 rounded-xl text-left font-bold flex items-center gap-3 text-slate-600 dark:text-slate-400 transition-colors">
                   <Mail size={20}/> Contact Admin
                </button>
             </div>
@@ -514,21 +568,38 @@ export default function WuregStore() {
                   </div>
                </div>
 
-               {/* Categories */}
-               <div className="flex gap-3 justify-center overflow-x-auto pb-6 scrollbar-hide">
-                  {['All', 'Game', 'Akun', 'Software'].map(cat => (
-                    <button 
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={`px-8 py-3 rounded-full text-sm font-bold transition-all duration-300 border ${
-                        selectedCategory === cat 
-                        ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-white border-transparent shadow-lg shadow-cyan-500/25 scale-105' 
-                        : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-300'
-                      }`}
+               {/* --- FILTER & SORT CONTROL --- */}
+               <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide w-full md:w-auto">
+                   {['All', 'Game', 'Akun', 'Software'].map(cat => (
+                     <button 
+                       key={cat}
+                       onClick={() => setSelectedCategory(cat)}
+                       className={`px-6 py-2 rounded-full text-sm font-bold transition-all duration-300 border whitespace-nowrap ${
+                         selectedCategory === cat 
+                         ? 'bg-slate-900 dark:bg-white text-white dark:text-black border-transparent shadow-lg scale-105' 
+                         : 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:border-slate-300'
+                       }`}
+                     >
+                       {cat}
+                     </button>
+                   ))}
+                 </div>
+
+                 {/* Sorting Dropdown */}
+                 <div className="relative group min-w-[180px]">
+                    <select 
+                      value={sortBy}
+                      onChange={(e) => setSortBy(e.target.value as any)}
+                      className="appearance-none w-full bg-white dark:bg-zinc-900 border border-slate-200 dark:border-white/10 text-slate-700 dark:text-slate-300 font-bold py-2 px-4 pr-10 rounded-full focus:outline-none focus:ring-2 focus:ring-cyan-500/50 cursor-pointer"
                     >
-                      {cat}
-                    </button>
-                  ))}
+                      <option value="default">✨ Rekomendasi</option>
+                      <option value="price_low">💰 Harga Terendah</option>
+                      <option value="price_high">💎 Harga Tertinggi</option>
+                      <option value="name">🔤 Nama (A-Z)</option>
+                    </select>
+                    <ArrowUpDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                 </div>
                </div>
 
                {isLoading ? (
@@ -573,7 +644,7 @@ export default function WuregStore() {
                                 <div>
                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-0.5">{product.category}</p>
                                    <p className="font-black text-lg bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 to-blue-600 dark:from-cyan-400 dark:to-blue-400">
-                                      Rp {product.price?.toLocaleString()}
+                                     Rp {product.price?.toLocaleString()}
                                    </p>
                                 </div>
                                 <div className="bg-slate-100 dark:bg-white/5 p-2.5 rounded-full group-hover:bg-cyan-500 group-hover:text-white transition-all duration-300 group-hover:rotate-12 group-hover:shadow-lg group-hover:shadow-cyan-500/30">
@@ -743,49 +814,49 @@ export default function WuregStore() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                    {transactions.length === 0 ? (
-                                     <tr><td colSpan={4} className="p-10 text-center text-slate-400 font-medium">Tidak ada data untuk periode ini.</td></tr>
+                                      <tr><td colSpan={4} className="p-10 text-center text-slate-400 font-medium">Tidak ada data untuk periode ini.</td></tr>
                                    ) : transactions.map(t => (
-                                     <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
-                                        <td className="p-5 text-slate-500 whitespace-nowrap">
-                                           <div className="font-bold text-slate-700 dark:text-slate-300">{new Date(t.created_at).toLocaleDateString('id-ID')}</div>
-                                           <div className="text-xs opacity-60 font-mono mt-0.5">{new Date(t.created_at).toLocaleTimeString('id-ID')}</div>
-                                        </td>
-                                        <td className="p-5">
-                                           <div className="font-bold text-slate-900 dark:text-white text-base">{t.product_name}</div>
-                                           <div className="text-sm text-slate-500 font-medium">{t.buyer_name}</div>
-                                           <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mt-1 bg-cyan-50 dark:bg-cyan-900/20 px-2 py-0.5 rounded w-fit">Rp {t.price?.toLocaleString()}</div>
-                                        </td>
-                                        <td className="p-5">
-                                           <div className="flex flex-col gap-1.5">
-                                              <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
-                                                 <Mail size={12}/> {t.buyer_email || '-'}
-                                              </div>
-                                              <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-500">
-                                                 <Smartphone size={12}/> {t.device_model || '-'}
-                                              </div>
-                                              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                                                 <CreditCard size={10}/> {t.payment_method}
-                                              </div>
-                                           </div>
-                                        </td>
-                                        <td className="p-5">
-                                           <button 
-                                              onClick={() => handleUpdateStatus(t.id, t.status)}
-                                              disabled={statusUpdateId === t.id}
-                                              className={`text-xs px-4 py-2 rounded-xl font-bold border transition-all hover:scale-105 active:scale-95 flex items-center gap-2 shadow-sm ${
-                                                 t.status === 'Selesai' ? 'bg-green-500 text-white border-green-600 hover:bg-green-600' 
-                                                 : t.status === 'Gagal' ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
-                                                 : 'bg-yellow-400 text-yellow-900 border-yellow-500 hover:bg-yellow-300'
-                                              }`}
-                                           >
-                                              {statusUpdateId === t.id ? <Loader2 size={12} className="animate-spin"/> : 
-                                               t.status === 'Selesai' ? <CheckCircle size={12}/> :
-                                               t.status === 'Gagal' ? <X size={12}/> : <Loader2 size={12}/>
-                                              }
-                                              {t.status}
-                                           </button>
-                                        </td>
-                                     </tr>
+                                      <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-white/5 transition-colors group">
+                                         <td className="p-5 text-slate-500 whitespace-nowrap">
+                                            <div className="font-bold text-slate-700 dark:text-slate-300">{new Date(t.created_at).toLocaleDateString('id-ID')}</div>
+                                            <div className="text-xs opacity-60 font-mono mt-0.5">{new Date(t.created_at).toLocaleTimeString('id-ID')}</div>
+                                         </td>
+                                         <td className="p-5">
+                                            <div className="font-bold text-slate-900 dark:text-white text-base">{t.product_name}</div>
+                                            <div className="text-sm text-slate-500 font-medium">{t.buyer_name}</div>
+                                            <div className="text-xs font-bold text-cyan-600 dark:text-cyan-400 mt-1 bg-cyan-50 dark:bg-cyan-900/20 px-2 py-0.5 rounded w-fit">Rp {t.price?.toLocaleString()}</div>
+                                         </td>
+                                         <td className="p-5">
+                                            <div className="flex flex-col gap-1.5">
+                                               <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400">
+                                                  <Mail size={12}/> {t.buyer_email || '-'}
+                                               </div>
+                                               <div className="flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-500">
+                                                  <Smartphone size={12}/> {t.device_model || '-'}
+                                               </div>
+                                               <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 uppercase tracking-wider">
+                                                  <CreditCard size={10}/> {t.payment_method}
+                                               </div>
+                                            </div>
+                                         </td>
+                                         <td className="p-5">
+                                            <button 
+                                               onClick={() => handleUpdateStatus(t.id, t.status)}
+                                               disabled={statusUpdateId === t.id}
+                                               className={`text-xs px-4 py-2 rounded-xl font-bold border transition-all hover:scale-105 active:scale-95 flex items-center gap-2 shadow-sm ${
+                                                  t.status === 'Selesai' ? 'bg-green-500 text-white border-green-600 hover:bg-green-600' 
+                                                  : t.status === 'Gagal' ? 'bg-red-500 text-white border-red-600 hover:bg-red-600'
+                                                  : 'bg-yellow-400 text-yellow-900 border-yellow-500 hover:bg-yellow-300'
+                                               }`}
+                                            >
+                                               {statusUpdateId === t.id ? <Loader2 size={12} className="animate-spin"/> : 
+                                                t.status === 'Selesai' ? <CheckCircle size={12}/> :
+                                                t.status === 'Gagal' ? <X size={12}/> : <Loader2 size={12}/>
+                                               }
+                                               {t.status}
+                                            </button>
+                                         </td>
+                                      </tr>
                                    ))}
                                 </tbody>
                              </table>
