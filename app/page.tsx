@@ -8,7 +8,7 @@ import {
   Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, MessageSquare, ToggleLeft, ToggleRight, Wallet
+  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
@@ -69,7 +69,7 @@ const SOCIALS = [
   { name: 'YouTube', url: 'https://www.youtube.com/@HAFIZWRG', color: 'from-red-500 to-red-700', icon: <Monitor size={20}/> }
 ];
 
-// --- FAQ DATA (Static) ---
+// --- FAQ DATA ---
 const FAQ_DATA = [
   { q: "Bagaimana cara order?", a: "Pilih produk -> Isi Data -> Pilih Pembayaran -> Konfirmasi -> Kirim ke WA Admin." },
   { q: "Apakah proses instan?", a: "Ya, proses 1-10 menit setelah admin menerima bukti transfer." },
@@ -92,15 +92,15 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
 export default function WuregStore() {
   const [activePage, setActivePage] = useState('home'); 
   const [isContactOpen, setIsContactOpen] = useState(false);
-  const [isFaqOpen, setIsFaqOpen] = useState(false); // New FAQ Modal State
+  const [isFaqOpen, setIsFaqOpen] = useState(false); 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
 
   // Data State
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [testimonials, setTestimonials] = useState<any[]>([]); // New Testimonial State
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]); // New Dynamic Payment State
+  const [testimonials, setTestimonials] = useState<any[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Staff State
@@ -108,11 +108,12 @@ export default function WuregStore() {
   const [staffPinInput, setStaffPinInput] = useState('');
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments'>('dashboard');
   
-  // Staff: Transactions
+  // Staff: Transactions & Detail
   const [reportFilter, setReportFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
   const [adminSearchTrx, setAdminSearchTrx] = useState('');
   const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null);
-  
+  const [selectedTrxDetail, setSelectedTrxDetail] = useState<any>(null); // Untuk Modal Detail Transaksi
+
   // Staff: Product CRUD
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
@@ -120,7 +121,7 @@ export default function WuregStore() {
 
   // Staff: Payment CRUD
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', logo_code: 'B' });
+  const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', image_url: '' });
 
   // Store & Checkout State
   const [searchQuery, setSearchQuery] = useState('');
@@ -128,9 +129,9 @@ export default function WuregStore() {
   const [sortBy, setSortBy] = useState<'default' | 'price_low' | 'price_high' | 'name'>('default');
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [checkoutStep, setCheckoutStep] = useState(1); 
-  const [selectedPayment, setSelectedPayment] = useState('');
+  const [selectedPayment, setSelectedPayment] = useState<any>(null); // Changed to object for logo access
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
-  const [reviewForm, setReviewForm] = useState({ name: '', comment: '', rating: 5 }); // Review Form
+  const [reviewForm, setReviewForm] = useState({ name: '', comment: '', rating: 5 });
   const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -176,7 +177,7 @@ export default function WuregStore() {
 
   const fetchPaymentMethods = async () => {
     try {
-      const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true);
+      const { data } = await supabase.from('payment_methods').select('*');
       setPaymentMethods(data || []);
     } catch (e) {}
   };
@@ -238,6 +239,20 @@ export default function WuregStore() {
     } catch(err) { showToast("Gagal hapus payment", "error"); }
   };
 
+  const handleUpdateStatus = async (transactionId: string, currentStatus: string) => {
+    if (!supabase) return;
+    let newStatus = currentStatus === 'Pending' ? 'Selesai' : currentStatus === 'Selesai' ? 'Gagal' : 'Pending';
+    setStatusUpdateId(transactionId);
+    try {
+      const { error } = await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
+      if (error) throw error;
+      setTransactions(prev => prev.map(t => t.id === transactionId ? { ...t, status: newStatus } : t));
+      if(selectedTrxDetail && selectedTrxDetail.id === transactionId) setSelectedTrxDetail({...selectedTrxDetail, status: newStatus});
+      showToast(`Status: ${newStatus}`, "success");
+    } catch (err) { showToast("Gagal update", "error"); } 
+    finally { setStatusUpdateId(null); }
+  };
+
   // --- ACTIONS (USER) ---
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -288,7 +303,7 @@ export default function WuregStore() {
       buyer_email: buyerForm.email,
       product_name: selectedProduct.name,
       price: selectedProduct.price,
-      payment_method: selectedPayment, // Nama Payment
+      payment_method: selectedPayment.name, // Save Name
       status: 'Pending',
       device_model: buyerForm.device_model || '-',
     };
@@ -296,11 +311,7 @@ export default function WuregStore() {
       const { data, error } = await supabase.from('transactions').insert([trxData]).select();
       if (error) throw error;
       const newTrxId = data?.[0]?.id || 'NEW';
-      // Cari detail payment
-      const payDetail = paymentMethods.find(p => p.name === selectedPayment);
-      const payInfo = payDetail ? `${payDetail.name} (${payDetail.va_number})` : selectedPayment;
-
-      const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${payInfo}\n🆔 ${newTrxId}`;
+      const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
       window.open(`https://wa.me/${ADMIN_PHONE}?text=${encodeURIComponent(msg)}`, '_blank');
       showToast("Order Berhasil!", "success");
       setSelectedProduct(null);
@@ -318,6 +329,11 @@ export default function WuregStore() {
     else if (sortBy === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
     return result;
   }, [products, searchQuery, selectedCategory, sortBy]);
+
+  const filteredAdminTrx = useMemo(() => transactions.filter(t => 
+    (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
+    (t.id || "").toString().includes(adminSearchTrx)
+  ), [transactions, adminSearchTrx]);
 
   const { totalRevenue, successCount } = useMemo(() => ({
     totalRevenue: transactions.reduce((acc, curr) => acc + (curr.price || 0), 0),
@@ -435,13 +451,13 @@ export default function WuregStore() {
                          </div>
                       ))}
                    </div>
-                   <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl max-w-xl mx-auto border border-white/50 dark:border-white/10">
+                   <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl max-w-xl mx-auto border border-white/50 dark:border-white/10 shadow-lg">
                       <h4 className="font-bold mb-4">Tulis Ulasan</h4>
                       <input className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl mb-3 text-sm outline-none" placeholder="Nama Kamu" value={reviewForm.name} onChange={e=>setReviewForm({...reviewForm, name: e.target.value})}/>
                       <textarea className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl mb-3 text-sm outline-none" placeholder="Komentar..." value={reviewForm.comment} onChange={e=>setReviewForm({...reviewForm, comment: e.target.value})}/>
                       <div className="flex justify-between items-center">
                          <div className="flex items-center gap-2 text-sm text-slate-500">Rating: <input type="number" min="1" max="5" value={reviewForm.rating} onChange={e=>setReviewForm({...reviewForm, rating: parseInt(e.target.value)})} className="w-12 bg-slate-200 rounded p-1 text-center"/></div>
-                         <button onClick={submitReview} className="bg-cyan-600 text-white px-6 py-2 rounded-xl font-bold text-sm">Kirim</button>
+                         <button onClick={submitReview} className="bg-cyan-600 text-white px-6 py-2 rounded-xl font-bold text-sm hover:bg-cyan-500 transition-colors">Kirim</button>
                       </div>
                    </div>
                 </div>
@@ -478,6 +494,54 @@ export default function WuregStore() {
                        </div>
                     )}
 
+                    {activeAdminTab === 'transactions' && (
+                      <div className="space-y-6 animate-slideIn">
+                          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
+                             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                                <div className="flex gap-2">
+                                   {['today', 'week', 'all'].map(f => (
+                                      <button key={f} onClick={() => setReportFilter(f as any)} className={`px-4 py-1.5 rounded-full text-xs font-bold border ${reportFilter === f ? 'bg-cyan-500 text-white border-transparent' : 'bg-transparent border-slate-300 dark:border-white/20'}`}>{f.toUpperCase()}</button>
+                                   ))}
+                                   <button onClick={fetchFilteredTransactions} className="p-1.5 bg-slate-100 dark:bg-white/10 rounded-full"><RefreshCw size={14}/></button>
+                                </div>
+                                <input type="text" placeholder="Cari ID / Nama / Produk..." className="bg-slate-50 dark:bg-black/30 px-4 py-2 rounded-xl text-sm border-none focus:ring-2 ring-cyan-500/50" value={adminSearchTrx} onChange={(e) => setAdminSearchTrx(e.target.value)}/>
+                             </div>
+                             <div className="overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5">
+                                      <tr>
+                                         <th className="p-4 rounded-l-xl">ID</th>
+                                         <th className="p-4">Produk</th>
+                                         <th className="p-4">Pembeli</th>
+                                         <th className="p-4">Metode</th>
+                                         <th className="p-4">Status</th>
+                                         <th className="p-4 rounded-r-xl">Aksi</th>
+                                      </tr>
+                                   </thead>
+                                   <tbody className="divide-y divide-slate-100 dark:divide-white/5">
+                                      {filteredAdminTrx.map(t => (
+                                         <tr key={t.id}>
+                                            <td className="p-4">
+                                              <span className="font-mono text-xs bg-slate-100 p-1 rounded">{t.id.slice(0,6)}...</span>
+                                              <div className="text-[10px] opacity-60 mt-1">{new Date(t.created_at).toLocaleDateString()}</div>
+                                            </td>
+                                            <td className="p-4"><div className="font-bold">{t.product_name}</div><div className="text-xs text-cyan-600 font-bold">Rp {t.price?.toLocaleString()}</div></td>
+                                            <td className="p-4"><div className="font-bold">{t.buyer_name}</div></td>
+                                            <td className="p-4"><div className="text-xs font-bold uppercase">{t.payment_method}</div></td>
+                                            <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${t.status === 'Selesai' ? 'bg-green-100 text-green-600' : t.status === 'Gagal' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>{t.status}</span></td>
+                                            <td className="p-4 flex gap-2">
+                                               <button onClick={() => setSelectedTrxDetail(t)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14}/></button>
+                                               <button onClick={() => handleDeleteTransaction(t.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={14}/></button>
+                                            </td>
+                                         </tr>
+                                      ))}
+                                   </tbody>
+                                </table>
+                             </div>
+                          </div>
+                      </div>
+                    )}
+
                     {activeAdminTab === 'products' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
@@ -505,13 +569,15 @@ export default function WuregStore() {
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
                               <h3 className="text-2xl font-black">Metode Pembayaran</h3>
-                              <button onClick={() => { setPaymentForm({ name: '', va_number: '', logo_code: 'B' }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                              <button onClick={() => { setPaymentForm({ name: '', va_number: '', image_url: '' }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {paymentMethods.map(pm => (
                                 <div key={pm.id} className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border border-white/50 flex justify-between items-center">
                                    <div className="flex items-center gap-4">
-                                      <div className="w-12 h-12 bg-slate-100 dark:bg-white/10 rounded-full flex items-center justify-center font-black">{pm.logo_code}</div>
+                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">
+                                         {pm.image_url ? <img src={pm.image_url} alt={pm.name} className="w-full h-full object-contain"/> : <Wallet size={20}/>}
+                                      </div>
                                       <div><h4 className="font-bold">{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div>
                                    </div>
                                    <button onClick={() => handleDeletePayment(pm.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
@@ -546,7 +612,36 @@ export default function WuregStore() {
            </div>
         )}
 
-        {/* Product CRUD Modal (Updated with Label & Stock) */}
+        {/* Transaction Detail Modal (NEW FEATURE) */}
+        {selectedTrxDetail && (
+           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setSelectedTrxDetail(null)}>
+              <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl relative overflow-hidden">
+                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
+                 <h3 className="text-xl font-black mb-1">Detail Transaksi</h3>
+                 <p className="text-sm text-slate-500 mb-6">ID: {selectedTrxDetail.id}</p>
+                 
+                 <div className="space-y-4 bg-slate-50 dark:bg-black/20 p-4 rounded-2xl mb-6">
+                    <div className="flex justify-between"><span className="text-sm text-slate-500">Tanggal</span><span className="font-bold text-sm">{new Date(selectedTrxDetail.created_at).toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-slate-500">Pembeli</span><span className="font-bold text-sm">{selectedTrxDetail.buyer_name}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-slate-500">Kontak</span><span className="font-bold text-sm">{selectedTrxDetail.buyer_email}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-slate-500">Device</span><span className="font-bold text-sm">{selectedTrxDetail.device_model}</span></div>
+                    <hr className="border-dashed border-slate-300 dark:border-white/10"/>
+                    <div className="flex justify-between"><span className="text-sm text-slate-500">Produk</span><span className="font-bold text-sm">{selectedTrxDetail.product_name}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-slate-500">Harga</span><span className="font-bold text-sm text-cyan-600">Rp {selectedTrxDetail.price?.toLocaleString()}</span></div>
+                    <div className="flex justify-between"><span className="text-sm text-slate-500">Payment</span><span className="font-bold text-sm uppercase">{selectedTrxDetail.payment_method}</span></div>
+                 </div>
+
+                 <div className="flex gap-2">
+                    <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, selectedTrxDetail.status)} className={`flex-1 py-3 rounded-xl font-bold text-white transition-all ${selectedTrxDetail.status === 'Selesai' ? 'bg-green-600' : selectedTrxDetail.status === 'Gagal' ? 'bg-red-600' : 'bg-yellow-500'}`}>
+                       Ubah Status ({selectedTrxDetail.status})
+                    </button>
+                    <button onClick={() => setSelectedTrxDetail(null)} className="px-4 py-3 bg-slate-100 dark:bg-white/10 rounded-xl font-bold">Tutup</button>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {/* Product CRUD Modal */}
         {isProductModalOpen && (
            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
               <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl">
@@ -580,9 +675,7 @@ export default function WuregStore() {
                  <div className="space-y-4">
                     <input type="text" placeholder="Nama Bank/E-Wallet" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.name} onChange={e => setPaymentForm({...paymentForm, name: e.target.value})}/>
                     <input type="text" placeholder="No. Rekening / VA" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.va_number} onChange={e => setPaymentForm({...paymentForm, va_number: e.target.value})}/>
-                    <select className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.logo_code} onChange={e => setPaymentForm({...paymentForm, logo_code: e.target.value})}>
-                       <option value="B">B - Bank (Umum)</option><option value="D">D - Dana</option><option value="G">G - Gopay/Ovo</option><option value="Q">Q - QRIS</option>
-                    </select>
+                    <input type="text" placeholder="Logo Image URL" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.image_url} onChange={e => setPaymentForm({...paymentForm, image_url: e.target.value})}/>
                  </div>
                  <div className="flex gap-3 mt-8">
                     <button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button>
@@ -619,9 +712,15 @@ export default function WuregStore() {
                        <p className="text-xs font-bold text-slate-500 ml-1">PILIH METODE</p>
                        <div className="space-y-3">
                           {paymentMethods.length === 0 ? <p className="text-center text-sm text-slate-400 py-4">Belum ada metode pembayaran.</p> : paymentMethods.map(m => (
-                             <div key={m.id} onClick={() => setSelectedPayment(m.name)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedPayment === m.name ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 ring-1 ring-cyan-500' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
-                                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="font-bold">{m.name}</span></div>{selectedPayment === m.name && <CheckCircle className="text-cyan-500" size={20}/>}</div>
-                                {selectedPayment === m.name && (<div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/10 flex justify-between items-center"><code className="font-mono font-bold">{m.va_number}</code><button onClick={(e)=>{e.stopPropagation(); navigator.clipboard.writeText(m.va_number); showToast("Disalin!", "success")}} className="p-1.5 bg-cyan-100 text-cyan-700 rounded-lg"><Copy size={14}/></button></div>)}
+                             <div key={m.id} onClick={() => setSelectedPayment(m)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedPayment?.id === m.id ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 ring-1 ring-cyan-500' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
+                                <div className="flex justify-between items-center">
+                                   <div className="flex items-center gap-3">
+                                      {m.image_url ? <img src={m.image_url} alt={m.name} className="w-8 h-8 object-contain rounded-full bg-white p-1"/> : <span className="font-bold">{m.name}</span>}
+                                      <span className="font-bold">{m.name}</span>
+                                   </div>
+                                   {selectedPayment?.id === m.id && <CheckCircle className="text-cyan-500" size={20}/>}
+                                </div>
+                                {selectedPayment?.id === m.id && (<div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/10 flex justify-between items-center"><code className="font-mono font-bold">{m.va_number}</code><button onClick={(e)=>{e.stopPropagation(); navigator.clipboard.writeText(m.va_number); showToast("Disalin!", "success")}} className="p-1.5 bg-cyan-100 text-cyan-700 rounded-lg"><Copy size={14}/></button></div>)}
                              </div>
                           ))}
                        </div>
