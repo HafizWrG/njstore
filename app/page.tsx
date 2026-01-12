@@ -112,7 +112,7 @@ export default function WuregStore() {
   const [reportFilter, setReportFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
   const [adminSearchTrx, setAdminSearchTrx] = useState('');
   const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null);
-  const [selectedTrxDetail, setSelectedTrxDetail] = useState<any>(null); // Untuk Modal Detail Transaksi
+  const [selectedTrxDetail, setSelectedTrxDetail] = useState<any>(null); // Detail Modal
 
   // Staff: Product CRUD
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
@@ -129,7 +129,7 @@ export default function WuregStore() {
   const [sortBy, setSortBy] = useState<'default' | 'price_low' | 'price_high' | 'name'>('default');
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [checkoutStep, setCheckoutStep] = useState(1); 
-  const [selectedPayment, setSelectedPayment] = useState<any>(null); // Changed to object for logo access
+  const [selectedPayment, setSelectedPayment] = useState<any>(null); 
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
   const [reviewForm, setReviewForm] = useState({ name: '', comment: '', rating: 5 });
   const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '' });
@@ -177,7 +177,7 @@ export default function WuregStore() {
 
   const fetchPaymentMethods = async () => {
     try {
-      const { data } = await supabase.from('payment_methods').select('*');
+      const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true);
       setPaymentMethods(data || []);
     } catch (e) {}
   };
@@ -303,7 +303,7 @@ export default function WuregStore() {
       buyer_email: buyerForm.email,
       product_name: selectedProduct.name,
       price: selectedProduct.price,
-      payment_method: selectedPayment.name, // Save Name
+      payment_method: selectedPayment.name,
       status: 'Pending',
       device_model: buyerForm.device_model || '-',
     };
@@ -335,10 +335,23 @@ export default function WuregStore() {
     (t.id || "").toString().includes(adminSearchTrx)
   ), [transactions, adminSearchTrx]);
 
-  const { totalRevenue, successCount } = useMemo(() => ({
-    totalRevenue: transactions.reduce((acc, curr) => acc + (curr.price || 0), 0),
-    successCount: transactions.filter(t => t.status === 'Selesai').length
-  }), [transactions]);
+  const { totalRevenue, successCount, topProducts, paymentCount } = useMemo(() => {
+    const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
+    const success = transactions.filter(t => t.status === 'Selesai').length;
+    
+    const pCount = transactions.reduce((acc: any, curr) => {
+      acc[curr.product_name] = (acc[curr.product_name] || 0) + 1;
+      return acc;
+    }, {});
+    const top = Object.entries(pCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
+    
+    const payCount = transactions.reduce((acc: any, curr) => {
+      acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1;
+      return acc;
+    }, {});
+
+    return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount };
+  }, [transactions]);
 
   if (!mounted) return null;
 
