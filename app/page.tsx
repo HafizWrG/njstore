@@ -8,7 +8,7 @@ import {
   Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, Link as LinkIcon, AlertTriangle
+  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, AlertTriangle
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
@@ -60,7 +60,6 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
 };
 
 const supabase: any = createSupabaseClient(supabaseUrl, supabaseKey);
-// Admin phone for fallback only
 const ADMIN_PHONE_FALLBACK = "6281528483575"; 
 
 // --- FAQ DATA ---
@@ -95,12 +94,13 @@ export default function WuregStore() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [contactMethods, setContactMethods] = useState<any[]>([]); // New Dynamic Contacts
+  const [contactMethods, setContactMethods] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Staff State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [staffPinInput, setStaffPinInput] = useState('');
+  const [isStaffLoginLoading, setIsStaffLoginLoading] = useState(false); // FIXED: Added missing state
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments' | 'contacts'>('dashboard');
   
   // Staff: Transactions & Detail
@@ -112,14 +112,14 @@ export default function WuregStore() {
   // Staff: CRUD Modals
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false); // New Modal
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false); 
 
   const [editingProduct, setEditingProduct] = useState<any>(null);
   
   // Forms
   const [productForm, setProductForm] = useState({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true });
   const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', image_url: '' });
-  const [contactForm, setContactForm] = useState({ platform_name: '', url: '', image_url: '' }); // New Form
+  const [contactForm, setContactForm] = useState({ platform_name: '', url: '', image_url: '' });
 
   // Store & Checkout State
   const [searchQuery, setSearchQuery] = useState('');
@@ -230,7 +230,6 @@ export default function WuregStore() {
     setPaymentMethods(prev => prev.filter(p => p.id !== id));
   };
 
-  // New Contact CRUD
   const handleSaveContact = async () => {
     if(!contactForm.platform_name || !contactForm.url) return showToast("Data kurang", "error");
     await supabase.from('contact_methods').insert([contactForm]);
@@ -260,13 +259,17 @@ export default function WuregStore() {
   // --- ACTIONS (USER) ---
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { data } = await supabase.from('admins').select('*').eq('pin', staffPinInput).single();
-    if (data) {
-      setIsStaffLoggedIn(true);
-      localStorage.setItem('isStaffLoggedIn', 'true');
-      showToast("Login Berhasil", "success");
-      setStaffPinInput('');
-    } else { showToast("PIN Salah!", "error"); }
+    setIsStaffLoginLoading(true);
+    try {
+      const { data } = await supabase.from('admins').select('*').eq('pin', staffPinInput).single();
+      if (data) {
+        setIsStaffLoggedIn(true);
+        localStorage.setItem('isStaffLoggedIn', 'true');
+        showToast("Login Berhasil", "success");
+        setStaffPinInput('');
+      } else { showToast("PIN Salah!", "error"); }
+    } catch (err) { showToast("Koneksi Error", "error"); }
+    finally { setIsStaffLoginLoading(false); }
   };
 
   const handleLogout = () => {
@@ -300,7 +303,6 @@ export default function WuregStore() {
       const { data, error } = await supabase.from('transactions').insert([trxData]).select();
       if (error) throw error;
       const newTrxId = data?.[0]?.id || 'NEW';
-      // Find First WA link from DB or fallback
       const waLink = contactMethods.find(c => c.platform_name.toLowerCase().includes('whatsapp'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
       const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
       window.open(`${waLink}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -453,7 +455,7 @@ export default function WuregStore() {
                     <h2 className="text-3xl font-black mb-2 text-slate-900 dark:text-white">Staff Access</h2>
                     <form onSubmit={handleStaffLogin} className="space-y-6 mt-6">
                        <input type="password" value={staffPinInput} onChange={e=>setStaffPinInput(e.target.value)} className="w-full bg-slate-50 dark:bg-black/50 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-center text-3xl tracking-[0.5em] font-bold outline-none focus:border-cyan-500" placeholder="••••"/>
-                       <button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold py-4 rounded-2xl hover:-translate-y-1 transition-all">LOGIN</button>
+                       <button disabled={isStaffLoginLoading} className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold py-4 rounded-2xl hover:-translate-y-1 transition-all flex justify-center">{isStaffLoginLoading ? <Loader2 className="animate-spin"/> : 'LOGIN'}</button>
                     </form>
                  </div>
                ) : (
@@ -463,7 +465,7 @@ export default function WuregStore() {
                           <button onClick={() => setActiveAdminTab('dashboard')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
                           <button onClick={() => setActiveAdminTab('transactions')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
                           <button onClick={() => setActiveAdminTab('products')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Produk</button>
-                          <button onClick={() => setActiveAdminTab('payments')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payment</button>
+                          <button onClick={() => setActiveAdminTab('payments')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payments</button>
                           <button onClick={() => setActiveAdminTab('contacts')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'contacts' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Contacts</button>
                        </div>
                        <button onClick={handleLogout} className="px-4 py-2 bg-red-50 text-red-500 rounded-full font-bold text-sm hover:bg-red-100 flex items-center gap-2"><LogOut size={16}/> Logout</button>
@@ -473,11 +475,8 @@ export default function WuregStore() {
                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slideIn">
                           <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-3xl text-white shadow-lg"><h3 className="text-3xl font-black">Rp {totalRevenue.toLocaleString()}</h3><p className="opacity-80">Total Omzet</p></div>
                           <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black">{transactions.length}</h3><p className="text-slate-500">Total Order</p></div>
-                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10 flex justify-between items-center">
-                             <div><h3 className="text-3xl font-black text-red-500">{lowStockCount}</h3><p className="text-slate-500">Stok Habis</p></div>
-                             <div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-2xl text-red-500"><AlertTriangle size={32}/></div>
-                          </div>
-                          {/* More Stats... */}
+                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10 flex justify-between items-center"><div><h3 className="text-3xl font-black text-red-500">{lowStockCount}</h3><p className="text-slate-500">Stok Habis</p></div><div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-2xl text-red-500"><AlertTriangle size={32}/></div></div>
+                          
                           <div className="col-span-1 md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                              <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
                                 <h4 className="font-bold mb-4 flex items-center gap-2"><Star size={20} className="text-yellow-500"/> Produk Terlaris</h4>
@@ -547,10 +546,7 @@ export default function WuregStore() {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {paymentMethods.map(pm => (
                                 <div key={pm.id} className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border border-white/50 flex justify-between items-center">
-                                   <div className="flex items-center gap-4">
-                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{pm.image_url ? <img src={pm.image_url} className="w-full h-full object-contain"/> : <Wallet size={20}/>}</div>
-                                      <div><h4 className="font-bold">{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div>
-                                   </div>
+                                   <div className="flex items-center gap-4"><div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{pm.image_url ? <img src={pm.image_url} alt={pm.name} className="w-full h-full object-contain"/> : <Wallet size={20}/>}</div><div><h4 className="font-bold">{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div></div>
                                    <button onClick={() => handleDeletePayment(pm.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                                 </div>
                              ))}
