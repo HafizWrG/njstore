@@ -240,14 +240,37 @@ export default function WuregStore() {
      } catch(err) { showToast("Gagal hapus", "error"); }
   };
 
-  const handleStaffLogin = (e: React.FormEvent) => {
+const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (staffPinInput === '1234') { // Simple Auth
-      setIsStaffLoggedIn(true);
-      localStorage.setItem('isStaffLoggedIn', 'true');
-      showToast("Login Berhasil", "success");
-    } else {
-      showToast("PIN Salah", "error");
+    
+    // Validasi input kosong
+    if (!staffPinInput) {
+      showToast("Masukkan PIN!", "error");
+      return;
+    }
+
+    try {
+      // Query ke Supabase: Cari data di tabel 'admins' yang kolom 'pin' = inputan user
+      const { data, error } = await supabase
+        .from('admins')
+        .select('*')
+        .eq('pin', staffPinInput)
+        .single(); // .single() artinya kita harap cuma ada 1 data yang cocok
+
+      if (error || !data) {
+        // Jika error atau data tidak ditemukan
+        showToast("PIN Salah / Akses Ditolak!", "error");
+        setStaffPinInput(''); // Reset input
+      } else {
+        // Jika sukses
+        setIsStaffLoggedIn(true);
+        localStorage.setItem('isStaffLoggedIn', 'true');
+        showToast(`Selamat datang, ${data.username || 'Admin'}!`, "success");
+        setStaffPinInput('');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Terjadi kesalahan koneksi.", "error");
     }
   };
 
