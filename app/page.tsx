@@ -8,7 +8,7 @@ import {
   Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet
+  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, Link as LinkIcon, AlertTriangle
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
@@ -60,14 +60,8 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
 };
 
 const supabase: any = createSupabaseClient(supabaseUrl, supabaseKey);
-const ADMIN_PHONE = "6281528483575"; 
-
-// --- SOCIAL MEDIA DATA ---
-const SOCIALS = [
-  { name: 'WhatsApp', url: `https://wa.me/${ADMIN_PHONE}`, color: 'from-green-400 to-green-600', icon: <Smartphone size={20}/> },
-  { name: 'Instagram', url: 'https://www.instagram.com/hfz.wrg/', color: 'from-pink-500 via-red-500 to-yellow-500', icon: <Monitor size={20}/> },
-  { name: 'YouTube', url: 'https://www.youtube.com/@HAFIZWRG', color: 'from-red-500 to-red-700', icon: <Monitor size={20}/> }
-];
+// Admin phone for fallback only
+const ADMIN_PHONE_FALLBACK = "6281528483575"; 
 
 // --- FAQ DATA ---
 const FAQ_DATA = [
@@ -101,12 +95,13 @@ export default function WuregStore() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [contactMethods, setContactMethods] = useState<any[]>([]); // New Dynamic Contacts
   const [isLoading, setIsLoading] = useState(true);
 
   // Staff State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [staffPinInput, setStaffPinInput] = useState('');
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments' | 'contacts'>('dashboard');
   
   // Staff: Transactions & Detail
   const [reportFilter, setReportFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
@@ -114,14 +109,17 @@ export default function WuregStore() {
   const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null);
   const [selectedTrxDetail, setSelectedTrxDetail] = useState<any>(null);
 
-  // Staff: Product CRUD
+  // Staff: CRUD Modals
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [productForm, setProductForm] = useState({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true });
-
-  // Staff: Payment CRUD
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false); // New Modal
+
+  const [editingProduct, setEditingProduct] = useState<any>(null);
+  
+  // Forms
+  const [productForm, setProductForm] = useState({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true });
   const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', image_url: '' });
+  const [contactForm, setContactForm] = useState({ platform_name: '', url: '', image_url: '' }); // New Form
 
   // Store & Checkout State
   const [searchQuery, setSearchQuery] = useState('');
@@ -146,6 +144,7 @@ export default function WuregStore() {
     fetchProducts();
     fetchTestimonials();
     fetchPaymentMethods();
+    fetchContactMethods();
     const savedLogin = localStorage.getItem('isStaffLoggedIn');
     if (savedLogin === 'true') setIsStaffLoggedIn(true);
   }, []);
@@ -161,25 +160,25 @@ export default function WuregStore() {
     setIsLoading(true);
     try {
       if (!supabase) throw new Error("Supabase missing");
-      const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
+      const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
       setProducts(data || []);
-    } catch (error) { showToast("Gagal memuat produk", "error"); } 
+    } catch (error) { showToast("Gagal memuat data", "error"); } 
     finally { setIsLoading(false); }
   };
 
   const fetchTestimonials = async () => {
-    try {
-      const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false }).limit(10);
-      setTestimonials(data || []);
-    } catch (e) {}
+    const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false }).limit(10);
+    setTestimonials(data || []);
   };
 
   const fetchPaymentMethods = async () => {
-    try {
-      const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true);
-      setPaymentMethods(data || []);
-    } catch (e) {}
+    const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true);
+    setPaymentMethods(data || []);
+  };
+
+  const fetchContactMethods = async () => {
+    const { data } = await supabase.from('contact_methods').select('*').eq('is_active', true);
+    setContactMethods(data || []);
   };
 
   const fetchFilteredTransactions = async () => {
@@ -198,82 +197,76 @@ export default function WuregStore() {
     } catch (err) { showToast("Gagal memuat laporan", "error"); }
   };
 
-  // --- ACTIONS (STAFF) ---
+  // --- ACTIONS (STAFF CRUD) ---
   const handleSaveProduct = async () => {
-     if(!productForm.name || !productForm.price) return showToast("Nama & Harga wajib diisi", "error");
+     if(!productForm.name || !productForm.price) return showToast("Wajib diisi", "error");
      const payload = { ...productForm, price: parseInt(productForm.price.toString()) };
      try {
         if (editingProduct) await supabase.from('products').update(payload).eq('id', editingProduct.id);
         else await supabase.from('products').insert([payload]);
         setIsProductModalOpen(false);
         fetchProducts();
-        showToast("Produk Disimpan", "success");
-     } catch (err) { showToast("Gagal simpan", "error"); }
+        showToast("Sukses", "success");
+     } catch (err) { showToast("Gagal", "error"); }
   };
 
   const handleDeleteProduct = async (id: string) => {
-     if(!confirm("Hapus produk?")) return;
-     try {
-        await supabase.from('products').delete().eq('id', id);
-        setProducts(prev => prev.filter(p => p.id !== id));
-        showToast("Produk Dihapus", "success");
-     } catch(err) { showToast("Gagal hapus", "error"); }
+     if(!confirm("Hapus?")) return;
+     await supabase.from('products').delete().eq('id', id);
+     setProducts(prev => prev.filter(p => p.id !== id));
   };
 
   const handleSavePayment = async () => {
-    if(!paymentForm.name || !paymentForm.va_number) return showToast("Data Payment kurang", "error");
-    try {
-      await supabase.from('payment_methods').insert([paymentForm]);
-      setIsPaymentModalOpen(false);
-      fetchPaymentMethods();
-      showToast("Metode Pembayaran Ditambah", "success");
-    } catch (err) { showToast("Gagal simpan payment", "error"); }
+    if(!paymentForm.name) return showToast("Data kurang", "error");
+    await supabase.from('payment_methods').insert([paymentForm]);
+    setIsPaymentModalOpen(false);
+    fetchPaymentMethods();
+    showToast("Sukses", "success");
   };
 
   const handleDeletePayment = async (id: string) => {
-    if(!confirm("Hapus metode pembayaran?")) return;
-    try {
-      await supabase.from('payment_methods').delete().eq('id', id);
-      setPaymentMethods(prev => prev.filter(p => p.id !== id));
-      showToast("Payment Dihapus", "success");
-    } catch(err) { showToast("Gagal hapus payment", "error"); }
+    if(!confirm("Hapus?")) return;
+    await supabase.from('payment_methods').delete().eq('id', id);
+    setPaymentMethods(prev => prev.filter(p => p.id !== id));
+  };
+
+  // New Contact CRUD
+  const handleSaveContact = async () => {
+    if(!contactForm.platform_name || !contactForm.url) return showToast("Data kurang", "error");
+    await supabase.from('contact_methods').insert([contactForm]);
+    setIsContactModalOpen(false);
+    fetchContactMethods();
+    showToast("Kontak Ditambah", "success");
+  };
+
+  const handleDeleteContact = async (id: string) => {
+    if(!confirm("Hapus kontak ini?")) return;
+    await supabase.from('contact_methods').delete().eq('id', id);
+    setContactMethods(prev => prev.filter(c => c.id !== id));
   };
 
   const handleUpdateStatus = async (transactionId: string, currentStatus: string) => {
-    if (!supabase) return;
     let newStatus = currentStatus === 'Pending' ? 'Selesai' : currentStatus === 'Selesai' ? 'Gagal' : 'Pending';
     setStatusUpdateId(transactionId);
     try {
-      const { error } = await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
-      if (error) throw error;
+      await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
       setTransactions(prev => prev.map(t => t.id === transactionId ? { ...t, status: newStatus } : t));
       if(selectedTrxDetail && selectedTrxDetail.id === transactionId) setSelectedTrxDetail({...selectedTrxDetail, status: newStatus});
       showToast(`Status: ${newStatus}`, "success");
-    } catch (err) { showToast("Gagal update", "error"); } 
+    } catch (err) { showToast("Gagal", "error"); } 
     finally { setStatusUpdateId(null); }
-  };
-
-  const handleDeleteTransaction = async (id: string) => {
-    if(!confirm("Hapus permanen?")) return;
-    try {
-       await supabase.from('transactions').delete().eq('id', id);
-       setTransactions(prev => prev.filter(t => t.id !== id));
-       showToast("Dihapus", "success");
-    } catch(err) { showToast("Gagal hapus", "error"); }
   };
 
   // --- ACTIONS (USER) ---
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      const { data } = await supabase.from('admins').select('*').eq('pin', staffPinInput).single();
-      if (data) {
-        setIsStaffLoggedIn(true);
-        localStorage.setItem('isStaffLoggedIn', 'true');
-        showToast("Login Berhasil", "success");
-        setStaffPinInput('');
-      } else { showToast("PIN Salah!", "error"); }
-    } catch (err) { showToast("Koneksi Error", "error"); }
+    const { data } = await supabase.from('admins').select('*').eq('pin', staffPinInput).single();
+    if (data) {
+      setIsStaffLoggedIn(true);
+      localStorage.setItem('isStaffLoggedIn', 'true');
+      showToast("Login Berhasil", "success");
+      setStaffPinInput('');
+    } else { showToast("PIN Salah!", "error"); }
   };
 
   const handleLogout = () => {
@@ -283,30 +276,15 @@ export default function WuregStore() {
   };
 
   const submitReview = async () => {
-    if(!reviewForm.name || !reviewForm.comment) return showToast("Isi nama dan komentar!", "error");
-    try {
-      await supabase.from('testimonials').insert([reviewForm]);
-      showToast("Terima kasih atas ulasannya!", "success");
-      setReviewForm({ name: '', comment: '', rating: 5 });
-      fetchTestimonials();
-    } catch(e) { showToast("Gagal kirim review", "error"); }
-  };
-
-  const validateForm = () => {
-    let isValid = true;
-    let errors = { name: '', email: '', device_model: '' };
-    if (buyerForm.name.length < 3) { errors.name = 'Min 3 karakter'; isValid = false; }
-    const phoneRegex = /^08[0-9]{8,13}$/;
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!phoneRegex.test(buyerForm.email) && !emailRegex.test(buyerForm.email)) { errors.email = 'Harus Email/No.HP'; isValid = false; }
-    if (selectedProduct?.category === 'Akun' && !buyerForm.device_model) { errors.device_model = 'Wajib diisi'; isValid = false; }
-    setFormErrors(errors);
-    return isValid;
+    if(!reviewForm.name || !reviewForm.comment) return showToast("Lengkapi data!", "error");
+    await supabase.from('testimonials').insert([reviewForm]);
+    showToast("Terkirim!", "success");
+    setReviewForm({ name: '', comment: '', rating: 5 });
+    fetchTestimonials();
   };
 
   const handleCheckoutSubmit = async () => {
     if (!selectedPayment) return showToast("Pilih metode pembayaran!", "error");
-    if (!supabase) return showToast("DB Error", "error");
     setIsSubmitting(true);
     
     const trxData = {
@@ -322,8 +300,10 @@ export default function WuregStore() {
       const { data, error } = await supabase.from('transactions').insert([trxData]).select();
       if (error) throw error;
       const newTrxId = data?.[0]?.id || 'NEW';
+      // Find First WA link from DB or fallback
+      const waLink = contactMethods.find(c => c.platform_name.toLowerCase().includes('whatsapp'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
       const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
-      window.open(`https://wa.me/${ADMIN_PHONE}?text=${encodeURIComponent(msg)}`, '_blank');
+      window.open(`${waLink}?text=${encodeURIComponent(msg)}`, '_blank');
       showToast("Order Berhasil!", "success");
       setSelectedProduct(null);
       setCheckoutStep(1);
@@ -346,20 +326,15 @@ export default function WuregStore() {
     (t.id || "").toString().includes(adminSearchTrx)
   ), [transactions, adminSearchTrx]);
 
-  const { totalRevenue, successCount, topProducts, paymentCount } = useMemo(() => {
+  const { totalRevenue, successCount, topProducts, paymentCount, lowStockCount } = useMemo(() => {
     const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
     const success = transactions.filter(t => t.status === 'Selesai').length;
-    const pCount = transactions.reduce((acc: any, curr) => {
-      acc[curr.product_name] = (acc[curr.product_name] || 0) + 1;
-      return acc;
-    }, {});
+    const pCount = transactions.reduce((acc: any, curr) => { acc[curr.product_name] = (acc[curr.product_name] || 0) + 1; return acc; }, {});
     const top = Object.entries(pCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
-    const payCount = transactions.reduce((acc: any, curr) => {
-      acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1;
-      return acc;
-    }, {});
-    return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount };
-  }, [transactions]);
+    const payCount = transactions.reduce((acc: any, curr) => { acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1; return acc; }, {});
+    const lowStock = products.filter(p => !p.is_ready).length;
+    return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount, lowStockCount: lowStock };
+  }, [transactions, products]);
 
   if (!mounted) return null;
 
@@ -405,10 +380,7 @@ export default function WuregStore() {
                 {/* Promo Banner */}
                 <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
                    <div className="absolute top-0 right-0 opacity-20"><Tag size={120}/></div>
-                   <div className="relative z-10">
-                      <h3 className="text-2xl font-black mb-1">FLASH SALE 🔥</h3>
-                      <p className="font-medium text-yellow-100">Harga termurah & Produk terbaik!</p>
-                   </div>
+                   <div className="relative z-10"><h3 className="text-2xl font-black mb-1">FLASH SALE 🔥</h3><p className="font-medium text-yellow-100">Harga termurah & Produk terbaik!</p></div>
                 </div>
 
                 {/* Search */}
@@ -435,22 +407,15 @@ export default function WuregStore() {
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                      {filteredProducts.map(product => (
-                       <div key={product.id} 
-                            onClick={() => product.is_ready ? (setSelectedProduct(product), setCheckoutStep(1)) : null} 
-                            className={`group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 relative overflow-hidden transition-all duration-500 ${product.is_ready ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-2' : 'opacity-60 grayscale cursor-not-allowed'}`}>
+                       <div key={product.id} onClick={() => product.is_ready ? (setSelectedProduct(product), setCheckoutStep(1)) : null} className={`group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 relative overflow-hidden transition-all duration-500 ${product.is_ready ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-2' : 'opacity-60 grayscale cursor-not-allowed'}`}>
                            {product.label && <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full uppercase shadow-md">{product.label}</div>}
                            <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
                               {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center font-black text-4xl opacity-20">{product.name.slice(0,2)}</div>}
                               {!product.is_ready && <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xl rotate-12 border-2 border-white m-8 rounded-xl">HABIS</div>}
                            </div>
                            <h3 className="font-bold text-lg line-clamp-1">{product.name}</h3>
-                           <div className="flex justify-between items-center mt-2">
-                             <p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p>
-                             <div className={`p-2 rounded-full ${product.is_ready ? 'bg-slate-100 dark:bg-white/5' : 'bg-red-100 text-red-500'}`}><ShoppingCart size={18}/></div>
-                           </div>
-                           <div className={`mt-3 flex items-center gap-1 text-[10px] font-bold uppercase ${product.is_ready ? 'text-green-600' : 'text-red-600'}`}>
-                              <div className={`w-2 h-2 rounded-full ${product.is_ready ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div> {product.is_ready ? 'Ready Stock' : 'Stok Kosong'}
-                           </div>
+                           <div className="flex justify-between items-center mt-2"><p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p><div className={`p-2 rounded-full ${product.is_ready ? 'bg-slate-100 dark:bg-white/5' : 'bg-red-100 text-red-500'}`}><ShoppingCart size={18}/></div></div>
+                           <div className={`mt-3 flex items-center gap-1 text-[10px] font-bold uppercase ${product.is_ready ? 'text-green-600' : 'text-red-600'}`}><div className={`w-2 h-2 rounded-full ${product.is_ready ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div> {product.is_ready ? 'Ready Stock' : 'Stok Kosong'}</div>
                        </div>
                      ))}
                   </div>
@@ -498,7 +463,8 @@ export default function WuregStore() {
                           <button onClick={() => setActiveAdminTab('dashboard')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
                           <button onClick={() => setActiveAdminTab('transactions')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
                           <button onClick={() => setActiveAdminTab('products')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Produk</button>
-                          <button onClick={() => setActiveAdminTab('payments')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payments</button>
+                          <button onClick={() => setActiveAdminTab('payments')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payment</button>
+                          <button onClick={() => setActiveAdminTab('contacts')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'contacts' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Contacts</button>
                        </div>
                        <button onClick={handleLogout} className="px-4 py-2 bg-red-50 text-red-500 rounded-full font-bold text-sm hover:bg-red-100 flex items-center gap-2"><LogOut size={16}/> Logout</button>
                     </div>
@@ -507,31 +473,19 @@ export default function WuregStore() {
                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slideIn">
                           <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-3xl text-white shadow-lg"><h3 className="text-3xl font-black">Rp {totalRevenue.toLocaleString()}</h3><p className="opacity-80">Total Omzet</p></div>
                           <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black">{transactions.length}</h3><p className="text-slate-500">Total Order</p></div>
-                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black text-green-500">{successCount}</h3><p className="text-slate-500">Sukses</p></div>
-                          
-                          {/* Stats Grid */}
+                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10 flex justify-between items-center">
+                             <div><h3 className="text-3xl font-black text-red-500">{lowStockCount}</h3><p className="text-slate-500">Stok Habis</p></div>
+                             <div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-2xl text-red-500"><AlertTriangle size={32}/></div>
+                          </div>
+                          {/* More Stats... */}
                           <div className="col-span-1 md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
                              <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
                                 <h4 className="font-bold mb-4 flex items-center gap-2"><Star size={20} className="text-yellow-500"/> Produk Terlaris</h4>
-                                <div className="space-y-3">
-                                   {topProducts.length === 0 ? <p className="text-slate-500">Belum ada data.</p> : topProducts.map(([name, count]: any, idx: number) => (
-                                     <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-white/5 rounded-xl">
-                                        <div className="flex items-center gap-3"><div className="font-black text-slate-300">#{idx+1}</div><span className="font-bold">{name}</span></div>
-                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-bold">{count}x</span>
-                                     </div>
-                                   ))}
-                                </div>
+                                <div className="space-y-3">{topProducts.map(([name, count]: any, idx: number) => (<div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-white/5 rounded-xl"><div className="flex items-center gap-3"><div className="font-black text-slate-300">#{idx+1}</div><span className="font-bold">{name}</span></div><span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-bold">{count}x</span></div>))}</div>
                              </div>
                              <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
                                 <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={20} className="text-blue-500"/> Metode Pembayaran</h4>
-                                <div className="space-y-4">
-                                   {Object.entries(paymentCount).map(([method, count]: any) => (
-                                      <div key={method}>
-                                         <div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div>
-                                         <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div></div>
-                                      </div>
-                                   ))}
-                                </div>
+                                <div className="space-y-4">{Object.entries(paymentCount).map(([method, count]: any) => (<div key={method}><div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div></div></div>))}</div>
                              </div>
                           </div>
                        </div>
@@ -541,26 +495,21 @@ export default function WuregStore() {
                       <div className="space-y-6 animate-slideIn">
                           <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
                              <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                                <div className="flex gap-2">
-                                   {['today', 'week', 'all'].map(f => (
-                                      <button key={f} onClick={() => setReportFilter(f as any)} className={`px-4 py-1.5 rounded-full text-xs font-bold border ${reportFilter === f ? 'bg-cyan-500 text-white border-transparent' : 'bg-transparent border-slate-300 dark:border-white/20'}`}>{f.toUpperCase()}</button>
-                                   ))}
-                                   <button onClick={fetchFilteredTransactions} className="p-1.5 bg-slate-100 dark:bg-white/10 rounded-full"><RefreshCw size={14}/></button>
-                                </div>
+                                <div className="flex gap-2">{['today', 'week', 'all'].map(f => (<button key={f} onClick={() => setReportFilter(f as any)} className={`px-4 py-1.5 rounded-full text-xs font-bold border ${reportFilter === f ? 'bg-cyan-500 text-white border-transparent' : 'bg-transparent border-slate-300 dark:border-white/20'}`}>{f.toUpperCase()}</button>))}</div>
                                 <input type="text" placeholder="Cari ID / Nama / Produk..." className="bg-slate-50 dark:bg-black/30 px-4 py-2 rounded-xl text-sm border-none focus:ring-2 ring-cyan-500/50" value={adminSearchTrx} onChange={(e) => setAdminSearchTrx(e.target.value)}/>
                              </div>
                              <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left">
-                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5"><tr><th className="p-4 rounded-l-xl">ID</th><th className="p-4">Produk</th><th className="p-4">Pembeli</th><th className="p-4">Metode</th><th className="p-4">Status</th><th className="p-4 rounded-r-xl">Aksi</th></tr></thead>
+                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5"><tr><th className="p-4 rounded-l-xl">ID</th><th className="p-4">Produk</th><th className="p-4">Kontak (HP/Email)</th><th className="p-4">Device</th><th className="p-4">Status</th><th className="p-4 rounded-r-xl">Aksi</th></tr></thead>
                                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                       {filteredAdminTrx.map(t => (
                                          <tr key={t.id}>
-                                            <td className="p-4"><span className="font-mono text-xs bg-slate-100 dark:bg-white/10 p-1 rounded">{t.id?.slice(0,6) || '#'}...</span><div className="text-[10px] opacity-60 mt-1">{new Date(t.created_at).toLocaleDateString()}</div></td>
-                                            <td className="p-4"><div className="font-bold">{t.product_name}</div><div className="text-xs text-cyan-600 font-bold">Rp {t.price?.toLocaleString()}</div></td>
-                                            <td className="p-4"><div className="font-bold">{t.buyer_name}</div></td>
-                                            <td className="p-4"><div className="text-xs font-bold uppercase">{t.payment_method}</div></td>
+                                            <td className="p-4"><span className="font-mono text-xs bg-slate-100 dark:bg-white/10 p-1 rounded">{t.id?.slice(0,6) || '#'}</span></td>
+                                            <td className="p-4"><div className="font-bold">{t.product_name}</div></td>
+                                            <td className="p-4"><div className="font-bold text-xs">{t.buyer_name}</div><div className="text-xs opacity-60">{t.buyer_email}</div></td>
+                                            <td className="p-4"><span className="text-xs font-mono">{t.device_model || '-'}</span></td>
                                             <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${t.status === 'Selesai' ? 'bg-green-100 text-green-600' : t.status === 'Gagal' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>{t.status}</span></td>
-                                            <td className="p-4 flex gap-2"><button onClick={() => setSelectedTrxDetail(t)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14}/></button><button onClick={() => handleDeleteTransaction(t.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={14}/></button></td>
+                                            <td className="p-4 flex gap-2"><button onClick={() => setSelectedTrxDetail(t)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14}/></button></td>
                                          </tr>
                                       ))}
                                    </tbody>
@@ -581,11 +530,7 @@ export default function WuregStore() {
                                 <div key={p.id} className="bg-white/80 dark:bg-zinc-900/80 p-4 rounded-3xl border border-white/50 dark:border-white/10 flex gap-4 items-center relative overflow-hidden">
                                    {!p.is_ready && <div className="absolute inset-0 bg-white/50 dark:bg-black/50 z-10 flex items-center justify-center font-bold text-red-600 rotate-12 border-2 border-red-500 m-6 rounded-xl">HABIS</div>}
                                    <div className="w-16 h-16 bg-slate-100 dark:bg-black/50 rounded-xl overflow-hidden flex-shrink-0">{p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}</div>
-                                   <div className="flex-1 min-w-0">
-                                      <h4 className="font-bold truncate">{p.name}</h4>
-                                      <p className="text-cyan-600 font-bold text-sm">Rp {p.price?.toLocaleString()}</p>
-                                      {p.label && <span className="text-[10px] bg-yellow-200 text-yellow-800 px-2 rounded-full font-bold">{p.label}</span>}
-                                   </div>
+                                   <div className="flex-1 min-w-0"><h4 className="font-bold truncate">{p.name}</h4><p className="text-cyan-600 font-bold text-sm">Rp {p.price?.toLocaleString()}</p></div>
                                    <div className="flex flex-col gap-2 z-20"><button onClick={() => { setEditingProduct(p); setProductForm(p); setIsProductModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-blue-500"><Edit3 size={16}/></button><button onClick={() => handleDeleteProduct(p.id)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-red-500"><Trash2 size={16}/></button></div>
                                 </div>
                              ))}
@@ -603,12 +548,30 @@ export default function WuregStore() {
                              {paymentMethods.map(pm => (
                                 <div key={pm.id} className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border border-white/50 flex justify-between items-center">
                                    <div className="flex items-center gap-4">
-                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">
-                                         {pm.image_url ? <img src={pm.image_url} alt={pm.name} className="w-full h-full object-contain"/> : <Wallet size={20}/>}
-                                      </div>
+                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{pm.image_url ? <img src={pm.image_url} className="w-full h-full object-contain"/> : <Wallet size={20}/>}</div>
                                       <div><h4 className="font-bold">{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div>
                                    </div>
                                    <button onClick={() => handleDeletePayment(pm.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                </div>
+                             ))}
+                          </div>
+                      </div>
+                    )}
+
+                    {activeAdminTab === 'contacts' && (
+                      <div className="space-y-6 animate-slideIn">
+                          <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
+                              <h3 className="text-2xl font-black">Kontak Admin</h3>
+                              <button onClick={() => { setContactForm({ platform_name: '', url: '', image_url: '' }); setIsContactModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {contactMethods.map(cm => (
+                                <div key={cm.id} className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border border-white/50 flex justify-between items-center">
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{cm.image_url ? <img src={cm.image_url} className="w-full h-full object-contain"/> : <Mail size={20}/>}</div>
+                                      <div><h4 className="font-bold">{cm.platform_name}</h4><p className="text-xs text-slate-500 truncate max-w-[200px]">{cm.url}</p></div>
+                                   </div>
+                                   <button onClick={() => handleDeleteContact(cm.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                                 </div>
                              ))}
                           </div>
@@ -648,7 +611,9 @@ export default function WuregStore() {
 
         {isPaymentModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">Tambah Payment</h3><div className="space-y-4"><input type="text" placeholder="Nama Bank/E-Wallet" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.name} onChange={e => setPaymentForm({...paymentForm, name: e.target.value})}/><input type="text" placeholder="No. Rekening / VA" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.va_number} onChange={e => setPaymentForm({...paymentForm, va_number: e.target.value})}/><input type="text" placeholder="Logo Image URL" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.image_url} onChange={e => setPaymentForm({...paymentForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSavePayment} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
 
-        {isContactOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}><div className="bg-white p-6 rounded-3xl max-w-sm w-full"><h3 className="font-bold text-xl mb-4">Hubungi Admin</h3><div className="space-y-2">{SOCIALS.map(s=><a key={s.name} href={s.url} target="_blank" className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl font-bold">{s.icon} {s.name}</a>)}</div></div></div>)}
+        {isContactModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">Tambah Kontak</h3><div className="space-y-4"><input type="text" placeholder="Nama Platform (WA, IG)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.platform_name} onChange={e => setContactForm({...contactForm, platform_name: e.target.value})}/><input type="text" placeholder="URL Link (https://...)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.url} onChange={e => setContactForm({...contactForm, url: e.target.value})}/><input type="text" placeholder="Icon URL (Optional)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.image_url} onChange={e => setContactForm({...contactForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsContactModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveContact} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
+
+        {isContactOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}><div className="bg-white p-6 rounded-3xl max-w-sm w-full"><h3 className="font-bold text-xl mb-4 text-center">Hubungi Admin</h3><div className="space-y-3">{contactMethods.map(c=><a key={c.id} href={c.url} target="_blank" className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl font-bold transition hover:bg-slate-200">{c.image_url ? <img src={c.image_url} className="w-6 h-6"/> : <Mail size={20}/>} {c.platform_name}</a>)}</div></div></div>)}
         
         {selectedProduct && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
