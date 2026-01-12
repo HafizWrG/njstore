@@ -8,10 +8,10 @@ import {
   Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, Receipt
+  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, MessageSquare, ToggleLeft, ToggleRight, Wallet
 } from 'lucide-react';
 
-// --- 1. SETUP ENV & SUPABASE (Custom Fetch Client) ---
+// --- 1. SETUP ENV & SUPABASE ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
 
@@ -64,18 +64,17 @@ const ADMIN_PHONE = "6281528483575";
 
 // --- SOCIAL MEDIA DATA ---
 const SOCIALS = [
-  { name: 'WhatsApp', url: `https://wa.me/${ADMIN_PHONE}`, color: 'from-green-400 to-green-600', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg> },
-  { name: 'Instagram', url: 'https://www.instagram.com/hfz.wrg/', color: 'from-pink-500 via-red-500 to-yellow-500', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.85-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.85-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg> },
-  { name: 'TikTok', url: 'https://www.tiktok.com/@minn_edzzt', color: 'from-gray-900 via-black to-gray-900', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93v6.16c0 3.13-2.3 5.76-5.4 5.99-3.32.25-6.1-2.23-6.3-5.52-.2-3.29 2.22-6.09 5.51-6.29.56-.03 1.11.05 1.67.24v4.25c-.2-.17-.46-.24-.72-.25-1.16-.07-2.18.79-2.25 1.95-.07 1.16.79 2.18 1.95 2.25 1.16.07 2.18-.79 2.25-1.95V6.76c0-2.39 0-4.78 0-7.17-.63.26-1.28.47-1.94.63-.64.16-1.3.26-1.97.29l.06-4.05c1.19-.06 2.37-.37 3.46-.94z"/></svg> },
-  { name: 'X (Twitter)', url: 'https://x.com/EdtzMinn', color: 'from-blue-400 to-blue-600', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> },
-  { name: 'YouTube', url: 'https://www.youtube.com/@HAFIZWRG', color: 'from-red-500 to-red-700', icon: <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg> }
+  { name: 'WhatsApp', url: `https://wa.me/${ADMIN_PHONE}`, color: 'from-green-400 to-green-600', icon: <Smartphone size={20}/> },
+  { name: 'Instagram', url: 'https://www.instagram.com/hfz.wrg/', color: 'from-pink-500 via-red-500 to-yellow-500', icon: <Monitor size={20}/> },
+  { name: 'YouTube', url: 'https://www.youtube.com/@HAFIZWRG', color: 'from-red-500 to-red-700', icon: <Monitor size={20}/> }
 ];
 
-// --- PAYMENT METHODS ---
-const PAYMENT_METHODS = [
-  { id: 'DANA', name: 'DANA', va: '0815-2848-3575 (a.n Wureg Store)', logo: 'D' },
-  { id: 'SHOPEEPAY', name: 'SHOPEEPAY', va: '0815-2848-3575 (a.n Wureg Store)', logo: 'S' },
-  { id: 'BRI', name: 'BRI', va: '3321-0102-1234-539 (a.n Wureg Store)', logo: 'B' }
+// --- FAQ DATA (Static) ---
+const FAQ_DATA = [
+  { q: "Bagaimana cara order?", a: "Pilih produk -> Isi Data -> Pilih Pembayaran -> Konfirmasi -> Kirim ke WA Admin." },
+  { q: "Apakah proses instan?", a: "Ya, proses 1-10 menit setelah admin menerima bukti transfer." },
+  { q: "Apa itu Label Produk?", a: "Label menunjukkan status produk seperti 'Promo', 'Best Seller', atau 'New'." },
+  { q: "Jam operasional?", a: "09:00 - 22:00 WIB. Di luar jam itu slow respon." }
 ];
 
 // --- TOAST COMPONENT ---
@@ -89,44 +88,39 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
   </div>
 );
 
-// --- PRODUCT SKELETON ---
-const ProductSkeleton = () => (
-  <div className="bg-white/50 dark:bg-zinc-900/50 border border-white/20 dark:border-white/5 rounded-3xl p-5 flex flex-col gap-3 animate-pulse">
-    <div className="h-40 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-2xl w-full"></div>
-    <div className="h-4 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full w-3/4"></div>
-    <div className="h-3 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full w-1/2"></div>
-    <div className="flex justify-between mt-2">
-      <div className="h-5 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full w-1/3"></div>
-      <div className="h-8 w-8 bg-zinc-200/50 dark:bg-zinc-800/50 rounded-full"></div>
-    </div>
-  </div>
-);
-
 // --- MAIN COMPONENT ---
 export default function WuregStore() {
   const [activePage, setActivePage] = useState('home'); 
   const [isContactOpen, setIsContactOpen] = useState(false);
+  const [isFaqOpen, setIsFaqOpen] = useState(false); // New FAQ Modal State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
 
   // Data State
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [testimonials, setTestimonials] = useState<any[]>([]); // New Testimonial State
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]); // New Dynamic Payment State
   const [isLoading, setIsLoading] = useState(true);
 
   // Staff State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [staffPinInput, setStaffPinInput] = useState('');
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments'>('dashboard');
+  
+  // Staff: Transactions
   const [reportFilter, setReportFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
   const [adminSearchTrx, setAdminSearchTrx] = useState('');
-  const [isReportLoading, setIsReportLoading] = useState(false);
   const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null);
   
-  // Product CRUD
+  // Staff: Product CRUD
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [productForm, setProductForm] = useState({ name: '', price: '', category: 'Game', image_url: '' });
+  const [productForm, setProductForm] = useState({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true });
+
+  // Staff: Payment CRUD
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', logo_code: 'B' });
 
   // Store & Checkout State
   const [searchQuery, setSearchQuery] = useState('');
@@ -136,6 +130,7 @@ export default function WuregStore() {
   const [checkoutStep, setCheckoutStep] = useState(1); 
   const [selectedPayment, setSelectedPayment] = useState('');
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
+  const [reviewForm, setReviewForm] = useState({ name: '', comment: '', rating: 5 }); // Review Form
   const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -148,7 +143,8 @@ export default function WuregStore() {
   useEffect(() => {
     setMounted(true);
     fetchProducts();
-    // Check persistent login
+    fetchTestimonials();
+    fetchPaymentMethods();
     const savedLogin = localStorage.getItem('isStaffLoggedIn');
     if (savedLogin === 'true') setIsStaffLoggedIn(true);
   }, []);
@@ -159,24 +155,34 @@ export default function WuregStore() {
     }
   }, [reportFilter, isStaffLoggedIn]);
 
-  // --- ACTIONS ---
+  // --- ACTIONS (FETCH) ---
   const fetchProducts = async () => {
     setIsLoading(true);
     try {
-      if (!supabase) throw new Error("Supabase key missing");
+      if (!supabase) throw new Error("Supabase missing");
       const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
       if (error) throw error;
       setProducts(data || []);
-    } catch (error) {
-      showToast("Gagal memuat produk", "error");
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error) { showToast("Gagal memuat produk", "error"); } 
+    finally { setIsLoading(false); }
+  };
+
+  const fetchTestimonials = async () => {
+    try {
+      const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false }).limit(10);
+      setTestimonials(data || []);
+    } catch (e) {}
+  };
+
+  const fetchPaymentMethods = async () => {
+    try {
+      const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true);
+      setPaymentMethods(data || []);
+    } catch (e) {}
   };
 
   const fetchFilteredTransactions = async () => {
     if (!supabase) return;
-    setIsReportLoading(true);
     try {
       const now = new Date();
       let startDate = null;
@@ -186,41 +192,14 @@ export default function WuregStore() {
 
       let query = supabase.from('transactions').select('*').order('created_at', { ascending: false });
       if (startDate) query = query.gte('created_at', startDate);
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data } = await query;
       setTransactions(data || []);
-    } catch (err) {
-      showToast("Gagal memuat laporan", "error");
-    } finally {
-      setIsReportLoading(false);
-    }
+    } catch (err) { showToast("Gagal memuat laporan", "error"); }
   };
 
-  const handleUpdateStatus = async (transactionId: string, currentStatus: string) => {
-    if (!supabase) return;
-    let newStatus = currentStatus === 'Pending' ? 'Selesai' : currentStatus === 'Selesai' ? 'Gagal' : 'Pending';
-    setStatusUpdateId(transactionId);
-    try {
-      const { error } = await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
-      if (error) throw error;
-      setTransactions(prev => prev.map(t => t.id === transactionId ? { ...t, status: newStatus } : t));
-      showToast(`Status: ${newStatus}`, "success");
-    } catch (err) { showToast("Gagal update", "error"); } 
-    finally { setStatusUpdateId(null); }
-  };
-
-  const handleDeleteTransaction = async (id: string) => {
-    if(!confirm("Hapus permanen?")) return;
-    try {
-       const { error } = await supabase.from('transactions').delete().eq('id', id);
-       if(error) throw error;
-       setTransactions(prev => prev.filter(t => t.id !== id));
-       showToast("Dihapus", "success");
-    } catch(err) { showToast("Gagal hapus", "error"); }
-  };
-
+  // --- ACTIONS (STAFF) ---
   const handleSaveProduct = async () => {
-     if(!productForm.name || !productForm.price) return showToast("Wajib diisi", "error");
+     if(!productForm.name || !productForm.price) return showToast("Nama & Harga wajib diisi", "error");
      const payload = { ...productForm, price: parseInt(productForm.price.toString()) };
      try {
         if (editingProduct) await supabase.from('products').update(payload).eq('id', editingProduct.id);
@@ -240,38 +219,37 @@ export default function WuregStore() {
      } catch(err) { showToast("Gagal hapus", "error"); }
   };
 
-const handleStaffLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validasi input kosong
-    if (!staffPinInput) {
-      showToast("Masukkan PIN!", "error");
-      return;
-    }
-
+  const handleSavePayment = async () => {
+    if(!paymentForm.name || !paymentForm.va_number) return showToast("Data Payment kurang", "error");
     try {
-      // Query ke Supabase: Cari data di tabel 'admins' yang kolom 'pin' = inputan user
-      const { data, error } = await supabase
-        .from('admins')
-        .select('*')
-        .eq('pin', staffPinInput)
-        .single(); // .single() artinya kita harap cuma ada 1 data yang cocok
+      await supabase.from('payment_methods').insert([paymentForm]);
+      setIsPaymentModalOpen(false);
+      fetchPaymentMethods();
+      showToast("Metode Pembayaran Ditambah", "success");
+    } catch (err) { showToast("Gagal simpan payment", "error"); }
+  };
 
-      if (error || !data) {
-        // Jika error atau data tidak ditemukan
-        showToast("PIN Salah / Akses Ditolak!", "error");
-        setStaffPinInput(''); // Reset input
-      } else {
-        // Jika sukses
+  const handleDeletePayment = async (id: string) => {
+    if(!confirm("Hapus metode pembayaran?")) return;
+    try {
+      await supabase.from('payment_methods').delete().eq('id', id);
+      setPaymentMethods(prev => prev.filter(p => p.id !== id));
+      showToast("Payment Dihapus", "success");
+    } catch(err) { showToast("Gagal hapus payment", "error"); }
+  };
+
+  // --- ACTIONS (USER) ---
+  const handleStaffLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { data } = await supabase.from('admins').select('*').eq('pin', staffPinInput).single();
+      if (data) {
         setIsStaffLoggedIn(true);
         localStorage.setItem('isStaffLoggedIn', 'true');
-        showToast(`Selamat datang, ${data.username || 'Admin'}!`, "success");
+        showToast("Login Berhasil", "success");
         setStaffPinInput('');
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Terjadi kesalahan koneksi.", "error");
-    }
+      } else { showToast("PIN Salah!", "error"); }
+    } catch (err) { showToast("Koneksi Error", "error"); }
   };
 
   const handleLogout = () => {
@@ -280,26 +258,24 @@ const handleStaffLogin = async (e: React.FormEvent) => {
     setActivePage('home');
   };
 
-  // --- VALIDATION & CHECKOUT ---
+  const submitReview = async () => {
+    if(!reviewForm.name || !reviewForm.comment) return showToast("Isi nama dan komentar!", "error");
+    try {
+      await supabase.from('testimonials').insert([reviewForm]);
+      showToast("Terima kasih atas ulasannya!", "success");
+      setReviewForm({ name: '', comment: '', rating: 5 });
+      fetchTestimonials();
+    } catch(e) { showToast("Gagal kirim review", "error"); }
+  };
+
   const validateForm = () => {
     let isValid = true;
     let errors = { name: '', email: '', device_model: '' };
-    
     if (buyerForm.name.length < 3) { errors.name = 'Min 3 karakter'; isValid = false; }
-    
     const phoneRegex = /^08[0-9]{8,13}$/;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
-    if (!phoneRegex.test(buyerForm.email) && !emailRegex.test(buyerForm.email)) {
-       errors.email = 'Harus Email atau No. HP (08...)';
-       isValid = false;
-    }
-
-    if (selectedProduct?.category === 'Akun' && !buyerForm.device_model) { 
-       errors.device_model = 'Wajib diisi untuk Akun'; 
-       isValid = false; 
-    }
-
+    if (!phoneRegex.test(buyerForm.email) && !emailRegex.test(buyerForm.email)) { errors.email = 'Harus Email/No.HP'; isValid = false; }
+    if (selectedProduct?.category === 'Akun' && !buyerForm.device_model) { errors.device_model = 'Wajib diisi'; isValid = false; }
     setFormErrors(errors);
     return isValid;
   };
@@ -312,7 +288,7 @@ const handleStaffLogin = async (e: React.FormEvent) => {
       buyer_email: buyerForm.email,
       product_name: selectedProduct.name,
       price: selectedProduct.price,
-      payment_method: selectedPayment,
+      payment_method: selectedPayment, // Nama Payment
       status: 'Pending',
       device_model: buyerForm.device_model || '-',
     };
@@ -320,11 +296,12 @@ const handleStaffLogin = async (e: React.FormEvent) => {
       const { data, error } = await supabase.from('transactions').insert([trxData]).select();
       if (error) throw error;
       const newTrxId = data?.[0]?.id || 'NEW';
-      const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${selectedPayment}\n🆔 ${newTrxId}`;
-      
-      // FIX: Corrected window.open syntax
+      // Cari detail payment
+      const payDetail = paymentMethods.find(p => p.name === selectedPayment);
+      const payInfo = payDetail ? `${payDetail.name} (${payDetail.va_number})` : selectedPayment;
+
+      const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${payInfo}\n🆔 ${newTrxId}`;
       window.open(`https://wa.me/${ADMIN_PHONE}?text=${encodeURIComponent(msg)}`, '_blank');
-      
       showToast("Order Berhasil!", "success");
       setSelectedProduct(null);
       setCheckoutStep(1);
@@ -333,7 +310,7 @@ const handleStaffLogin = async (e: React.FormEvent) => {
     finally { setIsSubmitting(false); }
   };
 
-  // --- RENDER HELPERS ---
+  // --- MEMOS ---
   const filteredProducts = useMemo(() => {
     let result = products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) && (selectedCategory === 'All' || p.category === selectedCategory));
     if (sortBy === 'price_low') result.sort((a, b) => a.price - b.price);
@@ -342,28 +319,10 @@ const handleStaffLogin = async (e: React.FormEvent) => {
     return result;
   }, [products, searchQuery, selectedCategory, sortBy]);
 
-  const filteredAdminTrx = useMemo(() => transactions.filter(t => 
-    (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
-    (t.id || "").toString().includes(adminSearchTrx)
-  ), [transactions, adminSearchTrx]);
-
-  const { totalRevenue, successCount, topProducts, paymentCount } = useMemo(() => {
-    const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
-    const success = transactions.filter(t => t.status === 'Selesai').length;
-    
-    const pCount = transactions.reduce((acc: any, curr) => {
-      acc[curr.product_name] = (acc[curr.product_name] || 0) + 1;
-      return acc;
-    }, {});
-    const top = Object.entries(pCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
-    
-    const payCount = transactions.reduce((acc: any, curr) => {
-      acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1;
-      return acc;
-    }, {});
-
-    return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount };
-  }, [transactions]);
+  const { totalRevenue, successCount } = useMemo(() => ({
+    totalRevenue: transactions.reduce((acc, curr) => acc + (curr.price || 0), 0),
+    successCount: transactions.filter(t => t.status === 'Selesai').length
+  }), [transactions]);
 
   if (!mounted) return null;
 
@@ -384,9 +343,10 @@ const handleStaffLogin = async (e: React.FormEvent) => {
               <img src="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" alt="Logo" className="w-9 h-9 rounded-xl shadow-lg shadow-cyan-500/30"/>
               <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">WuregStore</span>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button onClick={() => setActivePage('home')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all ${activePage === 'home' ? 'bg-white/80 dark:bg-white/10 text-cyan-600' : 'text-slate-600 dark:text-slate-300'}`}>Store</button>
               <button onClick={() => setActivePage('staff')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all ${activePage === 'staff' ? 'bg-white/80 dark:bg-white/10 text-cyan-600' : 'text-slate-600 dark:text-slate-300'}`}>Staff</button>
+              <button onClick={() => setIsFaqOpen(true)} className="hidden md:flex items-center gap-2 text-slate-600 dark:text-slate-300 px-3 hover:text-cyan-500 transition-colors" title="Bantuan & FAQ"><HelpCircle size={20}/></button>
               <button onClick={() => setIsContactOpen(true)} className="hidden md:flex items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-2 rounded-full text-sm font-bold"><Menu size={16}/> Contact</button>
               <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2"><AlignJustify size={24}/></button>
             </div>
@@ -395,6 +355,7 @@ const handleStaffLogin = async (e: React.FormEvent) => {
              <div className="md:hidden absolute top-20 left-0 w-full bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md rounded-3xl border border-white/20 p-2 flex flex-col gap-1 shadow-xl z-50">
                 <button onClick={() => {setActivePage('home'); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><ShoppingCart size={20}/> Store</button>
                 <button onClick={() => {setActivePage('staff'); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><ShieldCheck size={20}/> Staff</button>
+                <button onClick={() => {setIsFaqOpen(true); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><HelpCircle size={20}/> FAQ</button>
                 <button onClick={() => {setIsContactOpen(true); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><Mail size={20}/> Contact</button>
              </div>
           )}
@@ -404,24 +365,24 @@ const handleStaffLogin = async (e: React.FormEvent) => {
         <main className="container mx-auto px-4 pt-36 pb-20 min-h-screen relative z-10">
           {activePage === 'home' ? (
              <div className="space-y-12 animate-fadeIn">
-                
-                {/* PROMO BANNER (NEW FEATURE) */}
+                {/* Promo Banner */}
                 <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
                    <div className="absolute top-0 right-0 opacity-20"><Tag size={120}/></div>
                    <div className="relative z-10">
                       <h3 className="text-2xl font-black mb-1">FLASH SALE 🔥</h3>
-                      <p className="font-medium text-yellow-100">Dapatkan harga termurah untuk TopUp Mobile Legends hari ini!</p>
+                      <p className="font-medium text-yellow-100">Harga termurah & Produk terbaik!</p>
                    </div>
                 </div>
 
-                <div className="text-center py-10 px-4 rounded-[3rem] border border-white/50 dark:border-white/10 bg-white/30 dark:bg-zinc-900/30 backdrop-blur-md shadow-xl">
-                  <h1 className="text-5xl font-black mb-6 bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 to-purple-600">Digital Needs.<br/><span className="text-slate-800 dark:text-white">Solved.</span></h1>
+                {/* Search */}
+                <div className="text-center py-10">
                   <div className="max-w-lg mx-auto relative flex items-center bg-white/90 dark:bg-black/90 rounded-full p-1.5 shadow-2xl backdrop-blur-xl">
                       <div className="pl-4 text-slate-400"><Search size={22}/></div>
                       <input type="text" placeholder="Cari item..." className="w-full bg-transparent border-none focus:ring-0 px-4 py-3 font-medium text-slate-800 dark:text-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
                   </div>
                 </div>
 
+                {/* Filter & Sort */}
                 <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide w-full md:w-auto">
                      {['All', 'Game', 'Akun', 'Software'].map(cat => (
@@ -431,29 +392,59 @@ const handleStaffLogin = async (e: React.FormEvent) => {
                    <div className="relative"><select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-white/50 dark:border-white/10 font-bold py-2 px-4 rounded-full focus:outline-none cursor-pointer"><option value="default">✨ Rekomendasi</option><option value="price_low">💰 Termurah</option><option value="price_high">💎 Termahal</option></select></div>
                 </div>
 
+                {/* Product Grid */}
                 {isLoading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">{[1,2,3,4].map(i=><ProductSkeleton key={i}/>)}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">{[1,2,3,4].map(i=><div key={i} className="h-64 bg-slate-200 dark:bg-zinc-800 rounded-3xl animate-pulse"/>)}</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                      {filteredProducts.map(product => (
-                       <div key={product.id} onClick={() => { setSelectedProduct(product); setCheckoutStep(1); }} className="group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 cursor-pointer hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 relative overflow-hidden">
+                       <div key={product.id} 
+                            onClick={() => product.is_ready ? (setSelectedProduct(product), setCheckoutStep(1)) : null} 
+                            className={`group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 relative overflow-hidden transition-all duration-500 ${product.is_ready ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-2' : 'opacity-60 grayscale cursor-not-allowed'}`}>
+                           
+                           {/* Label Badge */}
+                           {product.label && <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full uppercase shadow-md">{product.label}</div>}
+                           
                            <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
                               {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center font-black text-4xl opacity-20">{product.name.slice(0,2)}</div>}
-                              <div className="absolute top-3 right-3 bg-white/80 dark:bg-black/60 p-2 rounded-xl backdrop-blur-md">
-                                 {product.icon === 'Gamepad' ? <Gamepad size={18} className="text-purple-500"/> : product.icon === 'Zap' ? <Zap size={18} className="text-yellow-500"/> : <Monitor size={18} className="text-blue-500"/>}
-                              </div>
+                              {!product.is_ready && <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xl rotate-12 border-2 border-white m-8 rounded-xl">HABIS</div>}
                            </div>
+                           
                            <h3 className="font-bold text-lg line-clamp-1">{product.name}</h3>
                            <div className="flex justify-between items-center mt-2">
                              <p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p>
-                             <div className="bg-slate-100 dark:bg-white/5 p-2 rounded-full"><ShoppingCart size={18}/></div>
+                             <div className={`p-2 rounded-full ${product.is_ready ? 'bg-slate-100 dark:bg-white/5' : 'bg-red-100 text-red-500'}`}><ShoppingCart size={18}/></div>
                            </div>
-                           {/* Stock Indicator Feature */}
-                           <div className="mt-3 flex items-center gap-1 text-[10px] text-green-600 font-bold uppercase"><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> Ready Stock</div>
+                           <div className={`mt-3 flex items-center gap-1 text-[10px] font-bold uppercase ${product.is_ready ? 'text-green-600' : 'text-red-600'}`}>
+                              <div className={`w-2 h-2 rounded-full ${product.is_ready ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div> {product.is_ready ? 'Ready Stock' : 'Stok Kosong'}
+                           </div>
                        </div>
                      ))}
                   </div>
                 )}
+
+                {/* Testimonial Section (NEW FEATURE) */}
+                <div className="pt-10 border-t border-slate-200 dark:border-white/10">
+                   <h3 className="text-2xl font-black mb-6 text-center">Apa Kata Mereka? 💬</h3>
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                      {testimonials.map((t, i) => (
+                         <div key={i} className="bg-white/50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-white/20">
+                            <div className="flex gap-1 text-yellow-400 mb-2">{[...Array(t.rating)].map((_,k)=><Star key={k} size={14} fill="currentColor"/>)}</div>
+                            <p className="text-sm italic mb-2">"{t.comment}"</p>
+                            <p className="text-xs font-bold text-slate-500">- {t.name}</p>
+                         </div>
+                      ))}
+                   </div>
+                   <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl max-w-xl mx-auto border border-white/50 dark:border-white/10">
+                      <h4 className="font-bold mb-4">Tulis Ulasan</h4>
+                      <input className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl mb-3 text-sm outline-none" placeholder="Nama Kamu" value={reviewForm.name} onChange={e=>setReviewForm({...reviewForm, name: e.target.value})}/>
+                      <textarea className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl mb-3 text-sm outline-none" placeholder="Komentar..." value={reviewForm.comment} onChange={e=>setReviewForm({...reviewForm, comment: e.target.value})}/>
+                      <div className="flex justify-between items-center">
+                         <div className="flex items-center gap-2 text-sm text-slate-500">Rating: <input type="number" min="1" max="5" value={reviewForm.rating} onChange={e=>setReviewForm({...reviewForm, rating: parseInt(e.target.value)})} className="w-12 bg-slate-200 rounded p-1 text-center"/></div>
+                         <button onClick={submitReview} className="bg-cyan-600 text-white px-6 py-2 rounded-xl font-bold text-sm">Kirim</button>
+                      </div>
+                   </div>
+                </div>
              </div>
           ) : (
             // --- STAFF PAGE ---
@@ -471,115 +462,59 @@ const handleStaffLogin = async (e: React.FormEvent) => {
                  <div className="space-y-6">
                     <div className="flex flex-col md:flex-row justify-between items-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
                        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-black/40 rounded-full overflow-x-auto">
-                          <button onClick={() => setActiveAdminTab('dashboard')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all whitespace-nowrap ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
-                          <button onClick={() => setActiveAdminTab('transactions')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all whitespace-nowrap ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
-                          <button onClick={() => setActiveAdminTab('products')} className={`px-6 py-3 rounded-full font-bold text-sm transition-all whitespace-nowrap ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow-md text-cyan-600' : 'text-slate-500'}`}>Produk</button>
+                          <button onClick={() => setActiveAdminTab('dashboard')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
+                          <button onClick={() => setActiveAdminTab('transactions')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
+                          <button onClick={() => setActiveAdminTab('products')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Produk</button>
+                          <button onClick={() => setActiveAdminTab('payments')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payments</button>
                        </div>
                        <button onClick={handleLogout} className="px-4 py-2 bg-red-50 text-red-500 rounded-full font-bold text-sm hover:bg-red-100 flex items-center gap-2"><LogOut size={16}/> Logout</button>
                     </div>
 
-                    {activeAdminTab === 'dashboard' ? (
-                       <div className="space-y-6 animate-slideIn">
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                             <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-3xl text-white shadow-lg"><h3 className="text-3xl font-black">Rp {totalRevenue.toLocaleString()}</h3><p className="opacity-80">Total Omzet</p></div>
-                             <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black">{transactions.length}</h3><p className="text-slate-500">Total Order</p></div>
-                             <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black text-green-500">{successCount}</h3><p className="text-slate-500">Sukses</p></div>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                             {/* Top Products */}
-                             <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
-                                <h4 className="font-bold mb-4 flex items-center gap-2"><Star size={20} className="text-yellow-500"/> Produk Terlaris</h4>
-                                <div className="space-y-3">
-                                   {topProducts.length === 0 ? <p className="text-slate-500">Belum ada data.</p> : topProducts.map(([name, count]: any, idx: number) => (
-                                     <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-white/5 rounded-xl">
-                                        <div className="flex items-center gap-3">
-                                           <div className="font-black text-slate-300">#{idx+1}</div>
-                                           <span className="font-bold">{name}</span>
-                                        </div>
-                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-bold">{count}x</span>
-                                     </div>
-                                   ))}
-                                </div>
-                             </div>
-
-                             {/* Payment Stats */}
-                             <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
-                                <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={20} className="text-blue-500"/> Metode Pembayaran</h4>
-                                <div className="space-y-4">
-                                   {Object.entries(paymentCount).map(([method, count]: any) => (
-                                      <div key={method}>
-                                         <div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div>
-                                         <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div></div>
-                                      </div>
-                                   ))}
-                                </div>
-                             </div>
-                          </div>
+                    {activeAdminTab === 'dashboard' && (
+                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slideIn">
+                          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-3xl text-white shadow-lg"><h3 className="text-3xl font-black">Rp {totalRevenue.toLocaleString()}</h3><p className="opacity-80">Total Omzet</p></div>
+                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black">{transactions.length}</h3><p className="text-slate-500">Total Order</p></div>
+                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black text-green-500">{successCount}</h3><p className="text-slate-500">Sukses</p></div>
                        </div>
-                    ) : activeAdminTab === 'transactions' ? (
-                      <div className="space-y-6 animate-slideIn">
-                          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
-                             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                                <div className="flex gap-2">
-                                   {['today', 'week', 'all'].map(f => (
-                                      <button key={f} onClick={() => setReportFilter(f as any)} className={`px-4 py-1.5 rounded-full text-xs font-bold border ${reportFilter === f ? 'bg-cyan-500 text-white border-transparent' : 'bg-transparent border-slate-300 dark:border-white/20'}`}>{f.toUpperCase()}</button>
-                                   ))}
-                                   <button onClick={fetchFilteredTransactions} className="p-1.5 bg-slate-100 dark:bg-white/10 rounded-full"><RefreshCw size={14}/></button>
-                                </div>
-                                <input type="text" placeholder="Cari ID / Nama / Produk..." className="bg-slate-50 dark:bg-black/30 px-4 py-2 rounded-xl text-sm border-none focus:ring-2 ring-cyan-500/50" value={adminSearchTrx} onChange={(e) => setAdminSearchTrx(e.target.value)}/>
-                             </div>
-                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5">
-                                      <tr>
-                                         <th className="p-4 rounded-l-xl">ID</th>
-                                         <th className="p-4">Produk</th>
-                                         <th className="p-4">Pembeli (Kontak)</th>
-                                         <th className="p-4">Device</th>
-                                         <th className="p-4">Metode</th>
-                                         <th className="p-4">Status</th>
-                                         <th className="p-4 rounded-r-xl">Aksi</th>
-                                      </tr>
-                                   </thead>
-                                   <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                      {filteredAdminTrx.map(t => (
-                                         <tr key={t.id}>
-                                            <td className="p-4">
-                                              <div className="flex items-center gap-2">
-                                                <span className="font-mono text-xs bg-slate-100 p-1 rounded">{t.id.slice(0,6)}...</span>
-                                                <button onClick={()=>{navigator.clipboard.writeText(t.id); showToast("ID Copied", "success")}} className="text-slate-400 hover:text-cyan-500"><Copy size={12}/></button>
-                                              </div>
-                                              <div className="text-[10px] opacity-60 mt-1">{new Date(t.created_at).toLocaleDateString()}</div>
-                                            </td>
-                                            <td className="p-4"><div className="font-bold">{t.product_name}</div><div className="text-xs text-cyan-600 font-bold">Rp {t.price?.toLocaleString()}</div></td>
-                                            <td className="p-4"><div className="font-bold">{t.buyer_name}</div><div className="text-xs text-slate-500">{t.buyer_email}</div></td>
-                                            <td className="p-4"><div className="text-xs font-mono bg-slate-100 dark:bg-white/5 p-1 rounded text-center">{t.device_model || '-'}</div></td>
-                                            <td className="p-4"><div className="text-xs font-bold uppercase">{t.payment_method}</div></td>
-                                            <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${t.status === 'Selesai' ? 'bg-green-100 text-green-600' : t.status === 'Gagal' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>{t.status}</span></td>
-                                            <td className="p-4 flex gap-2">
-                                               <button onClick={() => handleUpdateStatus(t.id, t.status)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><RefreshCw size={14}/></button>
-                                               <button onClick={() => handleDeleteTransaction(t.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={14}/></button>
-                                            </td>
-                                         </tr>
-                                      ))}
-                                   </tbody>
-                                </table>
-                             </div>
-                          </div>
-                      </div>
-                    ) : (
+                    )}
+
+                    {activeAdminTab === 'products' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
                               <h3 className="text-2xl font-black">Produk</h3>
-                              <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', price: '', category: 'Game', image_url: '' }); setIsProductModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg shadow-cyan-500/30 flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                              <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true }); setIsProductModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                              {products.map(p => (
-                                <div key={p.id} className="bg-white/80 dark:bg-zinc-900/80 p-4 rounded-3xl border border-white/50 dark:border-white/10 flex gap-4 items-center">
+                                <div key={p.id} className="bg-white/80 dark:bg-zinc-900/80 p-4 rounded-3xl border border-white/50 dark:border-white/10 flex gap-4 items-center relative overflow-hidden">
+                                   {!p.is_ready && <div className="absolute inset-0 bg-white/50 dark:bg-black/50 z-10 flex items-center justify-center font-bold text-red-600 rotate-12 border-2 border-red-500 m-6 rounded-xl">HABIS</div>}
                                    <div className="w-16 h-16 bg-slate-100 dark:bg-black/50 rounded-xl overflow-hidden flex-shrink-0">{p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}</div>
-                                   <div className="flex-1 min-w-0"><h4 className="font-bold truncate">{p.name}</h4><p className="text-cyan-600 font-bold text-sm">Rp {p.price?.toLocaleString()}</p></div>
-                                   <div className="flex flex-col gap-2"><button onClick={() => { setEditingProduct(p); setProductForm(p); setIsProductModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-blue-500"><Edit3 size={16}/></button><button onClick={() => handleDeleteProduct(p.id)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-red-500"><Trash2 size={16}/></button></div>
+                                   <div className="flex-1 min-w-0">
+                                      <h4 className="font-bold truncate">{p.name}</h4>
+                                      <p className="text-cyan-600 font-bold text-sm">Rp {p.price?.toLocaleString()}</p>
+                                      {p.label && <span className="text-[10px] bg-yellow-200 text-yellow-800 px-2 rounded-full font-bold">{p.label}</span>}
+                                   </div>
+                                   <div className="flex flex-col gap-2 z-20"><button onClick={() => { setEditingProduct(p); setProductForm(p); setIsProductModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-blue-500"><Edit3 size={16}/></button><button onClick={() => handleDeleteProduct(p.id)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-red-500"><Trash2 size={16}/></button></div>
+                                </div>
+                             ))}
+                          </div>
+                      </div>
+                    )}
+
+                    {activeAdminTab === 'payments' && (
+                      <div className="space-y-6 animate-slideIn">
+                          <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
+                              <h3 className="text-2xl font-black">Metode Pembayaran</h3>
+                              <button onClick={() => { setPaymentForm({ name: '', va_number: '', logo_code: 'B' }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             {paymentMethods.map(pm => (
+                                <div key={pm.id} className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border border-white/50 flex justify-between items-center">
+                                   <div className="flex items-center gap-4">
+                                      <div className="w-12 h-12 bg-slate-100 dark:bg-white/10 rounded-full flex items-center justify-center font-black">{pm.logo_code}</div>
+                                      <div><h4 className="font-bold">{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div>
+                                   </div>
+                                   <button onClick={() => handleDeletePayment(pm.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
                                 </div>
                              ))}
                           </div>
@@ -593,93 +528,25 @@ const handleStaffLogin = async (e: React.FormEvent) => {
 
         {/* --- MODALS --- */}
         
-        {/* 1. CONTACT POPUP (PREMIUM UI) */}
-        {isContactOpen && (
-           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}>
-              <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-xl p-8 rounded-[2.5rem] max-w-sm w-full border border-white/20 shadow-2xl relative">
-                  <button onClick={() => setIsContactOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-zinc-800 rounded-full hover:bg-slate-200"><X size={20}/></button>
-                  <div className="text-center mb-6">
-                     <h3 className="text-2xl font-black text-slate-900 dark:text-white">Hubungi Admin</h3>
-                     <p className="text-slate-500 text-sm mt-1">Respon cepat 24/7 untuk bantuan.</p>
-                  </div>
-                  <div className="space-y-3">
-                     {SOCIALS.map(s => (
-                        <a key={s.name} href={s.url} target="_blank" className={`flex items-center gap-4 p-4 rounded-2xl text-white font-bold transition-transform hover:scale-105 shadow-lg bg-gradient-to-r ${s.color}`}>
-                           {s.icon} <span>{s.name}</span> <ExternalLink size={16} className="ml-auto opacity-70"/>
-                        </a>
-                     ))}
-                  </div>
+        {/* FAQ Modal */}
+        {isFaqOpen && (
+           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setIsFaqOpen(false)}>
+              <div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] max-w-md w-full relative">
+                 <button onClick={() => setIsFaqOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-zinc-800 rounded-full"><X size={20}/></button>
+                 <h3 className="text-2xl font-black mb-6 flex items-center gap-2"><HelpCircle/> Bantuan & FAQ</h3>
+                 <div className="space-y-4">
+                    {FAQ_DATA.map((faq, i) => (
+                       <div key={i} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl">
+                          <h4 className="font-bold text-sm mb-1 text-cyan-600">{faq.q}</h4>
+                          <p className="text-sm text-slate-500">{faq.a}</p>
+                       </div>
+                    ))}
+                 </div>
               </div>
            </div>
         )}
 
-        {/* 2. CHECKOUT MODAL (2-STEP, VALIDATION, DETAIL) */}
-        {selectedProduct && (
-          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-               <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md">
-                  <div><h3 className="font-black text-xl">Checkout</h3><p className="text-sm text-slate-500">{checkoutStep === 1 ? 'Data Diri' : 'Pembayaran'}</p></div>
-                  <button onClick={() => setSelectedProduct(null)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-full"><X size={20}/></button>
-               </div>
-               
-               <div className="p-8 overflow-y-auto custom-scrollbar">
-                  <div className="flex items-center gap-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl mb-6 border border-slate-100 dark:border-white/5">
-                     <div className="h-12 w-12 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center text-cyan-600 font-black">{selectedProduct.name.slice(0,1)}</div>
-                     <div><h4 className="font-bold">{selectedProduct.name}</h4><p className="text-sm text-slate-500">{selectedProduct.category} • Rp {selectedProduct.price.toLocaleString()}</p></div>
-                  </div>
-
-                  {checkoutStep === 1 ? (
-                    <div className="space-y-4 animate-slideIn">
-                       <div>
-                          <label className="text-xs font-bold text-slate-500 ml-1">NAMA LENGKAP</label>
-                          <input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.name ? 'border-2 border-red-500' : ''}`} placeholder="Nama Anda" value={buyerForm.name} onChange={e=>setBuyerForm({...buyerForm, name: e.target.value})}/>
-                          {formErrors.name && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.name}</p>}
-                       </div>
-                       <div>
-                          <label className="text-xs font-bold text-slate-500 ml-1">NO. HP / EMAIL</label>
-                          <input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.email ? 'border-2 border-red-500' : ''}`} placeholder="08... atau email@..." value={buyerForm.email} onChange={e=>setBuyerForm({...buyerForm, email: e.target.value})}/>
-                          {formErrors.email && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.email}</p>}
-                       </div>
-                       {selectedProduct.category === 'Akun' && (
-                         <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-500/30">
-                            <label className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1"><Smartphone size={12}/> DEVICE MODEL (WAJIB)</label>
-                            <input className="w-full bg-white dark:bg-black/50 p-3 rounded-lg font-bold mt-2 outline-none" placeholder="Contoh: Android, iPhone 11" value={buyerForm.device_model} onChange={e=>setBuyerForm({...buyerForm, device_model: e.target.value})}/>
-                            {formErrors.device_model && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.device_model}</p>}
-                         </div>
-                       )}
-                       <button onClick={() => { if(validateForm()) setCheckoutStep(2); }} className="w-full bg-slate-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl mt-4 flex justify-center items-center gap-2">Lanjut Pembayaran <ChevronRight size={18}/></button>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 animate-slideIn">
-                       <p className="text-xs font-bold text-slate-500 ml-1">PILIH METODE</p>
-                       <div className="space-y-3">
-                          {PAYMENT_METHODS.map(m => (
-                             <div key={m.id} onClick={() => setSelectedPayment(m.id)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedPayment === m.id ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 ring-1 ring-cyan-500' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
-                                <div className="flex justify-between items-center">
-                                   <div className="flex items-center gap-3"><span className="font-bold">{m.name}</span></div>
-                                   {selectedPayment === m.id && <CheckCircle className="text-cyan-500" size={20}/>}
-                                </div>
-                                {selectedPayment === m.id && (
-                                   <div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/10 flex justify-between items-center">
-                                      <code className="font-mono font-bold">{m.va}</code>
-                                      <button onClick={(e)=>{e.stopPropagation(); navigator.clipboard.writeText(m.va); showToast("Disalin!", "success")}} className="p-1.5 bg-cyan-100 text-cyan-700 rounded-lg"><Copy size={14}/></button>
-                                   </div>
-                                )}
-                             </div>
-                          ))}
-                       </div>
-                       <div className="flex gap-3 mt-6">
-                          <button onClick={() => setCheckoutStep(1)} className="flex-1 py-4 bg-slate-100 dark:bg-zinc-800 rounded-xl font-bold">Kembali</button>
-                          <button disabled={!selectedPayment || isSubmitting} onClick={handleCheckoutSubmit} className="flex-[2] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50">Konfirmasi Order</button>
-                       </div>
-                    </div>
-                  )}
-               </div>
-            </div>
-          </div>
-        )}
-
-        {/* 3. PRODUCT CRUD MODAL */}
+        {/* Product CRUD Modal (Updated with Label & Stock) */}
         {isProductModalOpen && (
            <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
               <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl">
@@ -687,7 +554,14 @@ const handleStaffLogin = async (e: React.FormEvent) => {
                  <div className="space-y-4">
                     <input type="text" placeholder="Nama Produk" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})}/>
                     <input type="number" placeholder="Harga" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})}/>
-                    <select className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})}><option value="Game">Game</option><option value="Akun">Akun</option><option value="TopUp">TopUp</option><option value="Software">Software</option></select>
+                    <div className="flex gap-2">
+                       <select className="flex-1 bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})}><option value="Game">Game</option><option value="Akun">Akun</option><option value="TopUp">TopUp</option><option value="Software">Software</option></select>
+                       <input type="text" placeholder="Label (Optional)" className="flex-1 bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.label} onChange={e => setProductForm({...productForm, label: e.target.value})}/>
+                    </div>
+                    <div className="flex items-center justify-between bg-slate-100 dark:bg-black/50 p-3 rounded-xl">
+                       <span className="font-bold text-sm">Status Stok: {productForm.is_ready ? 'Ready' : 'Habis'}</span>
+                       <button onClick={()=>setProductForm({...productForm, is_ready: !productForm.is_ready})} className={`p-1 rounded-full w-12 flex transition-all ${productForm.is_ready ? 'bg-green-500 justify-end' : 'bg-red-500 justify-start'}`}><div className="w-5 h-5 bg-white rounded-full shadow-sm"></div></button>
+                    </div>
                     <input type="text" placeholder="Image URL (Optional)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.image_url} onChange={e => setProductForm({...productForm, image_url: e.target.value})}/>
                  </div>
                  <div className="flex gap-3 mt-8">
@@ -696,6 +570,67 @@ const handleStaffLogin = async (e: React.FormEvent) => {
                  </div>
               </div>
            </div>
+        )}
+
+        {/* Payment CRUD Modal */}
+        {isPaymentModalOpen && (
+           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+              <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl">
+                 <h3 className="text-xl font-black mb-4">Tambah Payment</h3>
+                 <div className="space-y-4">
+                    <input type="text" placeholder="Nama Bank/E-Wallet" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.name} onChange={e => setPaymentForm({...paymentForm, name: e.target.value})}/>
+                    <input type="text" placeholder="No. Rekening / VA" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.va_number} onChange={e => setPaymentForm({...paymentForm, va_number: e.target.value})}/>
+                    <select className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.logo_code} onChange={e => setPaymentForm({...paymentForm, logo_code: e.target.value})}>
+                       <option value="B">B - Bank (Umum)</option><option value="D">D - Dana</option><option value="G">G - Gopay/Ovo</option><option value="Q">Q - QRIS</option>
+                    </select>
+                 </div>
+                 <div className="flex gap-3 mt-8">
+                    <button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button>
+                    <button onClick={handleSavePayment} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button>
+                 </div>
+              </div>
+           </div>
+        )}
+
+        {/* Contact Popup & Checkout Modal */}
+        {isContactOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}><div className="bg-white p-6 rounded-3xl max-w-sm w-full"><h3 className="font-bold text-xl mb-4">Hubungi Admin</h3><div className="space-y-2">{SOCIALS.map(s=><a key={s.name} href={s.url} target="_blank" className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl font-bold">{s.icon} {s.name}</a>)}</div></div></div>)}
+        
+        {selectedProduct && (
+          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
+            <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+               <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md">
+                  <div><h3 className="font-black text-xl">Checkout</h3><p className="text-sm text-slate-500">{checkoutStep === 1 ? 'Data Diri' : 'Pembayaran'}</p></div>
+                  <button onClick={() => setSelectedProduct(null)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-full"><X size={20}/></button>
+               </div>
+               <div className="p-8 overflow-y-auto custom-scrollbar">
+                  <div className="flex items-center gap-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl mb-6 border border-slate-100 dark:border-white/5">
+                     <div className="h-12 w-12 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center text-cyan-600 font-black">{selectedProduct.name.slice(0,1)}</div>
+                     <div><h4 className="font-bold">{selectedProduct.name}</h4><p className="text-sm text-slate-500">{selectedProduct.category} • Rp {selectedProduct.price.toLocaleString()}</p></div>
+                  </div>
+                  {checkoutStep === 1 ? (
+                    <div className="space-y-4 animate-slideIn">
+                       <div><label className="text-xs font-bold text-slate-500 ml-1">NAMA LENGKAP</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.name ? 'border-2 border-red-500' : ''}`} placeholder="Nama Anda" value={buyerForm.name} onChange={e=>setBuyerForm({...buyerForm, name: e.target.value})}/>{formErrors.name && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.name}</p>}</div>
+                       <div><label className="text-xs font-bold text-slate-500 ml-1">NO. HP / EMAIL</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.email ? 'border-2 border-red-500' : ''}`} placeholder="08... atau email@..." value={buyerForm.email} onChange={e=>setBuyerForm({...buyerForm, email: e.target.value})}/>{formErrors.email && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.email}</p>}</div>
+                       {selectedProduct.category === 'Akun' && (<div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-500/30"><label className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1"><Smartphone size={12}/> DEVICE MODEL (WAJIB)</label><input className="w-full bg-white dark:bg-black/50 p-3 rounded-lg font-bold mt-2 outline-none" placeholder="Contoh: Android, iPhone 11" value={buyerForm.device_model} onChange={e=>setBuyerForm({...buyerForm, device_model: e.target.value})}/>{formErrors.device_model && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.device_model}</p>}</div>)}
+                       <button onClick={() => { if(validateForm()) setCheckoutStep(2); }} className="w-full bg-slate-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl mt-4 flex justify-center items-center gap-2">Lanjut Pembayaran <ChevronRight size={18}/></button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 animate-slideIn">
+                       <p className="text-xs font-bold text-slate-500 ml-1">PILIH METODE</p>
+                       <div className="space-y-3">
+                          {paymentMethods.length === 0 ? <p className="text-center text-sm text-slate-400 py-4">Belum ada metode pembayaran.</p> : paymentMethods.map(m => (
+                             <div key={m.id} onClick={() => setSelectedPayment(m.name)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedPayment === m.name ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 ring-1 ring-cyan-500' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
+                                <div className="flex justify-between items-center"><div className="flex items-center gap-3"><span className="font-bold">{m.name}</span></div>{selectedPayment === m.name && <CheckCircle className="text-cyan-500" size={20}/>}</div>
+                                {selectedPayment === m.name && (<div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/10 flex justify-between items-center"><code className="font-mono font-bold">{m.va_number}</code><button onClick={(e)=>{e.stopPropagation(); navigator.clipboard.writeText(m.va_number); showToast("Disalin!", "success")}} className="p-1.5 bg-cyan-100 text-cyan-700 rounded-lg"><Copy size={14}/></button></div>)}
+                             </div>
+                          ))}
+                       </div>
+                       <div className="flex gap-3 mt-6"><button onClick={() => setCheckoutStep(1)} className="flex-1 py-4 bg-slate-100 dark:bg-zinc-800 rounded-xl font-bold">Kembali</button><button disabled={!selectedPayment || isSubmitting} onClick={handleCheckoutSubmit} className="flex-[2] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50">Konfirmasi Order</button></div>
+                    </div>
+                  )}
+               </div>
+            </div>
+          </div>
         )}
 
         <style dangerouslySetInnerHTML={{__html: `
