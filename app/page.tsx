@@ -8,7 +8,7 @@ import {
   Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, AlertTriangle, Link as LinkIcon
+  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, AlertTriangle
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
@@ -256,6 +256,15 @@ export default function WuregStore() {
     finally { setStatusUpdateId(null); }
   };
 
+  const handleDeleteTransaction = async (id: string) => {
+    if(!confirm("Hapus permanen?")) return;
+    try {
+       await supabase.from('transactions').delete().eq('id', id);
+       setTransactions(prev => prev.filter(t => t.id !== id));
+       showToast("Dihapus", "success");
+    } catch(err) { showToast("Gagal hapus", "error"); }
+  };
+
   // --- ACTIONS (USER) ---
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -284,6 +293,35 @@ export default function WuregStore() {
     showToast("Terkirim!", "success");
     setReviewForm({ name: '', comment: '', rating: 5 });
     fetchTestimonials();
+  };
+
+  // --- FIX: Logic Validasi Form dipindah ke function handler ---
+  const handleNextStep = () => {
+    let isValid = true;
+    let errors = { name: '', email: '', device_model: '' };
+    
+    if (buyerForm.name.length < 3) { errors.name = 'Min 3 karakter'; isValid = false; }
+    
+    const phoneRegex = /^08[0-9]{8,13}$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!phoneRegex.test(buyerForm.email) && !emailRegex.test(buyerForm.email)) {
+       errors.email = 'Harus Email atau No. HP (08...)';
+       isValid = false;
+    }
+
+    if (selectedProduct?.category === 'Akun' && !buyerForm.device_model) { 
+       errors.device_model = 'Wajib diisi untuk Akun'; 
+       isValid = false; 
+    }
+
+    setFormErrors(errors);
+    
+    if(isValid) {
+        setCheckoutStep(2);
+    } else {
+        showToast("Data belum lengkap!", "error");
+    }
   };
 
   const handleCheckoutSubmit = async () => {
@@ -486,7 +524,7 @@ export default function WuregStore() {
                              </div>
                              <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
                                 <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={20} className="text-blue-500"/> Metode Pembayaran</h4>
-                                <div className="space-y-4">{Object.entries(paymentCount).map(([method, count]: any) => (<div key={method}><div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${transactions.length > 0 ? (count / transactions.length) * 100 : 0}%`}}></div></div></div>))}</div>
+                                <div className="space-y-4">{Object.entries(paymentCount).map(([method, count]: any) => (<div key={method}><div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div></div></div>))}</div>
                              </div>
                           </div>
                        </div>
@@ -520,7 +558,6 @@ export default function WuregStore() {
                       </div>
                     )}
 
-                    {/* ... (Tabs for Products, Payments, Contacts similar to previous response) ... */}
                     {activeAdminTab === 'products' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
@@ -631,7 +668,7 @@ export default function WuregStore() {
                        <div><label className="text-xs font-bold text-slate-500 ml-1">NAMA LENGKAP</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.name ? 'border-2 border-red-500' : ''}`} placeholder="Nama Anda" value={buyerForm.name} onChange={e=>setBuyerForm({...buyerForm, name: e.target.value})}/>{formErrors.name && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.name}</p>}</div>
                        <div><label className="text-xs font-bold text-slate-500 ml-1">NO. HP / EMAIL</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.email ? 'border-2 border-red-500' : ''}`} placeholder="08... atau email@..." value={buyerForm.email} onChange={e=>setBuyerForm({...buyerForm, email: e.target.value})}/>{formErrors.email && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.email}</p>}</div>
                        {selectedProduct.category === 'Akun' && (<div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-500/30"><label className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1"><Smartphone size={12}/> DEVICE MODEL (WAJIB)</label><input className="w-full bg-white dark:bg-black/50 p-3 rounded-lg font-bold mt-2 outline-none" placeholder="Contoh: Android, iPhone 11" value={buyerForm.device_model} onChange={e=>setBuyerForm({...buyerForm, device_model: e.target.value})}/>{formErrors.device_model && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.device_model}</p>}</div>)}
-                       <button onClick={() => { if(validateForm()) setCheckoutStep(2); }} className="w-full bg-slate-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl mt-4 flex justify-center items-center gap-2">Lanjut Pembayaran <ChevronRight size={18}/></button>
+                       <button onClick={handleNextStep} className="w-full bg-slate-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl mt-4 flex justify-center items-center gap-2">Lanjut Pembayaran <ChevronRight size={18}/></button>
                     </div>
                   ) : (
                     <div className="space-y-4 animate-slideIn">
