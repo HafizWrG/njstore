@@ -24,6 +24,6 @@
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "@types/html2canvas": "^1.0.0"
+    "html2canvas": "^1.4.1"
   }
 }
