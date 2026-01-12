@@ -1,14 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import html2canvas from 'html2canvas'; // Pastikan sudah: npm install html2canvas
 import { 
   Menu, X, Search, ShoppingCart, LogOut, 
-  Smartphone, Monitor, Gamepad, CreditCard, CheckCircle, 
+  Smartphone, Monitor, CreditCard, CheckCircle, 
   ChevronRight, ShieldCheck, Zap,
   Loader2, AlertCircle,
-  Calendar, TrendingUp, Download,
-  RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, AlertTriangle
+  Download, ExternalLink, Mail, Copy, AlignJustify,
+  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, 
+  ChevronLeft, Gamepad2, Ticket
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
@@ -36,6 +37,7 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
         order: (column: string, { ascending = true } = {}) => { url.searchParams.set('order', `${column}.${ascending ? 'asc' : 'desc'}`); return builder; },
         eq: (column: string, value: any) => { url.searchParams.set(column, `eq.${value}`); return builder; },
         gte: (column: string, value: any) => { url.searchParams.set(column, `gte.${value}`); return builder; },
+        range: (from: number, to: number) => { return builder; }, // Client side pagination used for smooth UX
         single: () => { isSingle = true; return builder; },
         insert: (data: any) => { method = 'POST'; body = JSON.stringify(data); return builder; },
         update: (data: any) => { method = 'PATCH'; body = JSON.stringify(data); return builder; }, 
@@ -92,10 +94,13 @@ export default function WuregStore() {
   // Data State
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [testimonials, setTestimonials] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [contactMethods, setContactMethods] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 16;
 
   // Staff State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
@@ -108,12 +113,12 @@ export default function WuregStore() {
   const [adminSearchTrx, setAdminSearchTrx] = useState('');
   const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null);
   const [selectedTrxDetail, setSelectedTrxDetail] = useState<any>(null);
+  const invoiceRef = useRef<HTMLDivElement>(null); // Ref untuk download invoice
 
   // Staff: CRUD Modals
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); 
-
   const [editingProduct, setEditingProduct] = useState<any>(null);
   
   // Forms
@@ -128,9 +133,19 @@ export default function WuregStore() {
   const [selectedProduct, setSelectedProduct] = useState<any>(null); 
   const [checkoutStep, setCheckoutStep] = useState(1); 
   const [selectedPayment, setSelectedPayment] = useState<any>(null); 
+  
+  // Buyer Forms
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
-  const [reviewForm, setReviewForm] = useState({ name: '', comment: '', rating: 5 });
-  const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '' });
+  const [topUpForm, setTopUpForm] = useState({ userId: '', zoneId: '' });
+  const [accNick, setAccNick] = useState('');
+  const [isCheckingNick, setIsCheckingNick] = useState(false);
+
+  // Voucher State
+  const [voucherCode, setVoucherCode] = useState('');
+  const [appliedVoucher, setAppliedVoucher] = useState<{code: string, amount: number} | null>(null);
+  const [voucherLoading, setVoucherLoading] = useState(false);
+
+  const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '', game_id: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -142,7 +157,6 @@ export default function WuregStore() {
   useEffect(() => {
     setMounted(true);
     fetchProducts();
-    fetchTestimonials();
     fetchPaymentMethods();
     fetchContactMethods();
     const savedLogin = localStorage.getItem('isStaffLoggedIn');
@@ -164,11 +178,6 @@ export default function WuregStore() {
       setProducts(data || []);
     } catch (error) { showToast("Gagal memuat data", "error"); } 
     finally { setIsLoading(false); }
-  };
-
-  const fetchTestimonials = async () => {
-    const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false }).limit(10);
-    setTestimonials(data || []);
   };
 
   const fetchPaymentMethods = async () => {
@@ -195,6 +204,55 @@ export default function WuregStore() {
       const { data } = await query;
       setTransactions(data || []);
     } catch (err) { showToast("Gagal memuat laporan", "error"); }
+  };
+
+  // --- ACTIONS (VOUCHER & CHECK NICK) ---
+  const handleApplyVoucher = async () => {
+    if(!voucherCode) return showToast("Masukkan kode voucher", "error");
+    setVoucherLoading(true);
+    try {
+        // Ganti dengan table 'vouchers' di supabase
+        const { data, error } = await supabase.from('vouchers').select('*').eq('code', voucherCode).eq('is_active', true).single();
+        if (error || !data) {
+            showToast("Kode voucher tidak valid / habis", "error");
+            setAppliedVoucher(null);
+        } else {
+            setAppliedVoucher({ code: data.code, amount: data.amount });
+            showToast(`Voucher Applied! Hemat Rp ${data.amount.toLocaleString()}`, "success");
+        }
+    } catch(err) { showToast("Gagal cek voucher", "error"); }
+    finally { setVoucherLoading(false); }
+  };
+
+  const checkGameNick = async () => {
+    if(!topUpForm.userId) return showToast("Masukkan User ID", "error");
+    setIsCheckingNick(true);
+    setAccNick('');
+    
+    // --- SIMULASI API CHECK NAME ---
+    // Di sini Anda bisa fetch ke API Provider (e.g., Digiflazz, Vola, Atlantic)
+    // Karena ini environment statis, kita mock response sukses.
+    setTimeout(() => {
+        setAccNick('WuregPlayer_test'); // Mock Result
+        setIsCheckingNick(false);
+    }, 1500);
+  };
+
+  // --- ACTIONS (DOWNLOAD INVOICE) ---
+  const downloadInvoice = async () => {
+    if (!invoiceRef.current) return;
+    try {
+        const canvas = await html2canvas(invoiceRef.current, { scale: 2, useCORS: true });
+        const image = canvas.toDataURL("image/jpeg", 1.0);
+        const link = document.createElement("a");
+        link.href = image;
+        link.download = `Invoice-${selectedTrxDetail?.id || 'TRX'}.jpg`;
+        link.click();
+        showToast("Invoice berhasil didownload", "success");
+    } catch (err) {
+        showToast("Gagal download invoice", "error");
+        console.error(err);
+    }
   };
 
   // --- ACTIONS (STAFF CRUD) ---
@@ -287,18 +345,10 @@ export default function WuregStore() {
     setActivePage('home');
   };
 
-  const submitReview = async () => {
-    if(!reviewForm.name || !reviewForm.comment) return showToast("Lengkapi data!", "error");
-    await supabase.from('testimonials').insert([reviewForm]);
-    showToast("Terkirim!", "success");
-    setReviewForm({ name: '', comment: '', rating: 5 });
-    fetchTestimonials();
-  };
-
-  // --- FIX: Logic Validasi Form dipindah ke function handler ---
+  // --- VALIDATION & CHECKOUT ---
   const handleNextStep = () => {
     let isValid = true;
-    let errors = { name: '', email: '', device_model: '' };
+    let errors = { name: '', email: '', device_model: '', game_id: '' };
     
     if (buyerForm.name.length < 3) { errors.name = 'Min 3 karakter'; isValid = false; }
     
@@ -315,6 +365,17 @@ export default function WuregStore() {
        isValid = false; 
     }
 
+    // Validasi TopUp
+    if (selectedProduct?.category === 'TopUp' && (!topUpForm.userId)) {
+       errors.game_id = 'ID Wajib diisi';
+       isValid = false;
+    }
+    // Jika TopUp, user harus cek nick dulu (Opsional tergantung kebijakan, tapi lebih aman dipaksa)
+    if (selectedProduct?.category === 'TopUp' && !accNick && topUpForm.userId) {
+       showToast("Silakan Cek ID terlebih dahulu!", "error");
+       isValid = false;
+    }
+
     setFormErrors(errors);
     
     if(isValid) {
@@ -324,6 +385,13 @@ export default function WuregStore() {
     }
   };
 
+  const finalPrice = useMemo(() => {
+    if (!selectedProduct) return 0;
+    let price = selectedProduct.price;
+    if (appliedVoucher) price -= appliedVoucher.amount;
+    return price < 0 ? 0 : price;
+  }, [selectedProduct, appliedVoucher]);
+
   const handleCheckoutSubmit = async () => {
     if (!selectedPayment) return showToast("Pilih metode pembayaran!", "error");
     setIsSubmitting(true);
@@ -332,10 +400,10 @@ export default function WuregStore() {
       buyer_name: buyerForm.name,
       buyer_email: buyerForm.email,
       product_name: selectedProduct.name,
-      price: selectedProduct.price,
+      price: finalPrice, // Simpan harga setelah diskon
       payment_method: selectedPayment.name,
       status: 'Pending',
-      device_model: buyerForm.device_model || '-',
+      device_model: selectedProduct.category === 'TopUp' ? `${topUpForm.userId} (${topUpForm.zoneId}) - ${accNick}` : (buyerForm.device_model || '-'),
     };
     try {
       const { data, error } = await supabase.from('transactions').insert([trxData]).select();
@@ -343,17 +411,31 @@ export default function WuregStore() {
       const newTrxId = data?.[0]?.id || 'NEW';
       // Safe find for WhatsApp
       const waLink = contactMethods.find(c => (c.platform_name || '').toLowerCase().includes('whatsapp'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
-      const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
+      
+      let msgDetails = ``;
+      if (selectedProduct.category === 'TopUp') {
+          msgDetails = `🎮 ID: ${topUpForm.userId} (${topUpForm.zoneId})\n👤 Nick: ${accNick}\n`;
+      } else if (selectedProduct.category === 'Akun') {
+          msgDetails = `📱 Device: ${buyerForm.device_model}\n`;
+      }
+
+      let voucherMsg = appliedVoucher ? `\n🎟️ Voucher: ${appliedVoucher.code} (-Rp ${appliedVoucher.amount.toLocaleString()})` : '';
+
+      const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${finalPrice.toLocaleString()} ${voucherMsg}\n\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${msgDetails}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
       window.open(`${waLink}?text=${encodeURIComponent(msg)}`, '_blank');
       showToast("Order Berhasil!", "success");
       setSelectedProduct(null);
       setCheckoutStep(1);
       setBuyerForm({ name: '', email: '', device_model: '' });
+      setTopUpForm({ userId: '', zoneId: '' });
+      setAccNick('');
+      setAppliedVoucher(null);
+      setVoucherCode('');
     } catch (err) { showToast("Gagal Order", "error"); } 
     finally { setIsSubmitting(false); }
   };
 
-  // --- MEMOS ---
+  // --- MEMOS & PAGINATION ---
   const filteredProducts = useMemo(() => {
     let result = products.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && (selectedCategory === 'All' || p.category === selectedCategory));
     if (sortBy === 'price_low') result.sort((a, b) => a.price - b.price);
@@ -362,20 +444,33 @@ export default function WuregStore() {
     return result;
   }, [products, searchQuery, selectedCategory, sortBy]);
 
+  // Client-Side Pagination Logic
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredProducts, currentPage]);
+
+  const changePage = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+        setCurrentPage(newPage);
+        window.scrollTo({ top: 400, behavior: 'smooth' });
+    }
+  }
+
   const filteredAdminTrx = useMemo(() => transactions.filter(t => 
     (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
     (t.product_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) ||
     (t.id || "").toString().includes(adminSearchTrx)
   ), [transactions, adminSearchTrx]);
 
-  const { totalRevenue, successCount, topProducts, paymentCount, lowStockCount } = useMemo(() => {
+  const { totalRevenue, topProducts, paymentCount, lowStockCount } = useMemo(() => {
     const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
-    const success = transactions.filter(t => t.status === 'Selesai').length;
     const pCount = transactions.reduce((acc: any, curr) => { acc[curr.product_name] = (acc[curr.product_name] || 0) + 1; return acc; }, {});
     const top = Object.entries(pCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
     const payCount = transactions.reduce((acc: any, curr) => { acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1; return acc; }, {});
     const lowStock = products.filter(p => !p.is_ready).length;
-    return { totalRevenue: rev, successCount: success, topProducts: top, paymentCount: payCount, lowStockCount: lowStock };
+    return { totalRevenue: rev, topProducts: top, paymentCount: payCount, lowStockCount: lowStock };
   }, [transactions, products]);
 
   if (!mounted) return null;
@@ -436,8 +531,8 @@ export default function WuregStore() {
                 {/* Filter & Sort */}
                 <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide w-full md:w-auto">
-                     {['All', 'Game', 'Akun', 'Software'].map(cat => (
-                       <button key={cat} onClick={() => setSelectedCategory(cat)} className={`px-6 py-2 rounded-full text-sm font-bold border backdrop-blur-md ${selectedCategory === cat ? 'bg-slate-900 dark:bg-white text-white dark:text-black scale-105' : 'bg-white/50 dark:bg-zinc-900/50 text-slate-700 dark:text-slate-300'}`}>{cat}</button>
+                     {['All', 'Game', 'TopUp', 'Akun', 'Software'].map(cat => (
+                       <button key={cat} onClick={() => {setSelectedCategory(cat); setCurrentPage(1);}} className={`px-6 py-2 rounded-full text-sm font-bold border backdrop-blur-md ${selectedCategory === cat ? 'bg-slate-900 dark:bg-white text-white dark:text-black scale-105' : 'bg-white/50 dark:bg-zinc-900/50 text-slate-700 dark:text-slate-300'}`}>{cat}</button>
                      ))}
                    </div>
                    <div className="relative"><select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-white/50 dark:border-white/10 font-bold py-2 px-4 rounded-full focus:outline-none cursor-pointer"><option value="default">✨ Rekomendasi</option><option value="price_low">💰 Termurah</option><option value="price_high">💎 Termahal</option></select></div>
@@ -445,46 +540,34 @@ export default function WuregStore() {
 
                 {/* Product Grid */}
                 {isLoading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">{[1,2,3,4].map(i=><div key={i} className="h-64 bg-slate-200 dark:bg-zinc-800 rounded-3xl animate-pulse"/>)}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">{[1,2,3,4,5,6,7,8].map(i=><div key={i} className="h-64 bg-slate-200 dark:bg-zinc-800 rounded-3xl animate-pulse"/>)}</div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                     {filteredProducts.map(product => (
-                       <div key={product.id} onClick={() => product.is_ready ? (setSelectedProduct(product), setCheckoutStep(1)) : null} className={`group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 relative overflow-hidden transition-all duration-500 ${product.is_ready ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-2' : 'opacity-60 grayscale cursor-not-allowed'}`}>
-                           {product.label && <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full uppercase shadow-md">{product.label}</div>}
-                           <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
-                              {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center font-black text-4xl opacity-20">{product.name.slice(0,2)}</div>}
-                              {!product.is_ready && <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xl rotate-12 border-2 border-white m-8 rounded-xl">HABIS</div>}
-                           </div>
-                           <h3 className="font-bold text-lg line-clamp-1">{product.name}</h3>
-                           <div className="flex justify-between items-center mt-2"><p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p><div className={`p-2 rounded-full ${product.is_ready ? 'bg-slate-100 dark:bg-white/5' : 'bg-red-100 text-red-500'}`}><ShoppingCart size={18}/></div></div>
-                           <div className={`mt-3 flex items-center gap-1 text-[10px] font-bold uppercase ${product.is_ready ? 'text-green-600' : 'text-red-600'}`}><div className={`w-2 h-2 rounded-full ${product.is_ready ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div> {product.is_ready ? 'Ready Stock' : 'Stok Kosong'}</div>
-                       </div>
-                     ))}
-                  </div>
-                )}
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                        {paginatedProducts.map(product => (
+                          <div key={product.id} onClick={() => product.is_ready ? (setSelectedProduct(product), setCheckoutStep(1)) : null} className={`group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 relative overflow-hidden transition-all duration-500 ${product.is_ready ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-2' : 'opacity-60 grayscale cursor-not-allowed'}`}>
+                              {product.label && <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full uppercase shadow-md">{product.label}</div>}
+                              <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
+                                {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center font-black text-4xl opacity-20">{product.name.slice(0,2)}</div>}
+                                {!product.is_ready && <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xl rotate-12 border-2 border-white m-8 rounded-xl">HABIS</div>}
+                              </div>
+                              <h3 className="font-bold text-lg line-clamp-1">{product.name}</h3>
+                              <div className="flex justify-between items-center mt-2"><p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p><div className={`p-2 rounded-full ${product.is_ready ? 'bg-slate-100 dark:bg-white/5' : 'bg-red-100 text-red-500'}`}><ShoppingCart size={18}/></div></div>
+                              <div className={`mt-3 flex items-center gap-1 text-[10px] font-bold uppercase ${product.is_ready ? 'text-green-600' : 'text-red-600'}`}><div className={`w-2 h-2 rounded-full ${product.is_ready ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div> {product.is_ready ? 'Ready Stock' : 'Stok Kosong'}</div>
+                          </div>
+                        ))}
+                    </div>
 
-                {/* Testimonial Section */}
-                <div className="pt-10 border-t border-slate-200 dark:border-white/10">
-                   <h3 className="text-2xl font-black mb-6 text-center">Apa Kata Mereka? 💬</h3>
-                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-                      {testimonials.map((t, i) => (
-                         <div key={i} className="bg-white/50 dark:bg-zinc-900/50 p-4 rounded-2xl border border-white/20">
-                            <div className="flex gap-1 text-yellow-400 mb-2">{[...Array(t.rating)].map((_,k)=><Star key={k} size={14} fill="currentColor"/>)}</div>
-                            <p className="text-sm italic mb-2">"{t.comment}"</p>
-                            <p className="text-xs font-bold text-slate-500">- {t.name}</p>
-                         </div>
-                      ))}
-                   </div>
-                   <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl max-w-xl mx-auto border border-white/50 dark:border-white/10 shadow-lg">
-                      <h4 className="font-bold mb-4">Tulis Ulasan</h4>
-                      <input className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl mb-3 text-sm outline-none" placeholder="Nama Kamu" value={reviewForm.name} onChange={e=>setReviewForm({...reviewForm, name: e.target.value})}/>
-                      <textarea className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl mb-3 text-sm outline-none" placeholder="Komentar..." value={reviewForm.comment} onChange={e=>setReviewForm({...reviewForm, comment: e.target.value})}/>
-                      <div className="flex justify-between items-center">
-                         <div className="flex items-center gap-2 text-sm text-slate-500">Rating: <input type="number" min="1" max="5" value={reviewForm.rating} onChange={e=>setReviewForm({...reviewForm, rating: parseInt(e.target.value)})} className="w-12 bg-slate-200 rounded p-1 text-center"/></div>
-                         <button onClick={submitReview} className="bg-cyan-600 text-white px-6 py-2 rounded-xl font-bold text-sm hover:bg-cyan-500 transition-colors">Kirim</button>
-                      </div>
-                   </div>
-                </div>
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex justify-center items-center gap-4 mt-12">
+                            <button onClick={() => changePage(currentPage - 1)} disabled={currentPage === 1} className="p-3 rounded-full bg-white dark:bg-zinc-800 disabled:opacity-50"><ChevronLeft/></button>
+                            <span className="font-bold">Page {currentPage} of {totalPages}</span>
+                            <button onClick={() => changePage(currentPage + 1)} disabled={currentPage === totalPages} className="p-3 rounded-full bg-white dark:bg-zinc-800 disabled:opacity-50"><ChevronRight/></button>
+                        </div>
+                    )}
+                  </>
+                )}
              </div>
           ) : (
             // --- STAFF PAGE ---
@@ -539,7 +622,7 @@ export default function WuregStore() {
                              </div>
                              <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left">
-                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5"><tr><th className="p-4 rounded-l-xl">ID</th><th className="p-4">Produk</th><th className="p-4">Kontak (HP/Email)</th><th className="p-4">Device</th><th className="p-4">Status</th><th className="p-4 rounded-r-xl">Aksi</th></tr></thead>
+                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5"><tr><th className="p-4 rounded-l-xl">ID</th><th className="p-4">Produk</th><th className="p-4">Kontak (HP/Email)</th><th className="p-4">Device/ID</th><th className="p-4">Status</th><th className="p-4 rounded-r-xl">Aksi</th></tr></thead>
                                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                       {filteredAdminTrx.map(t => (
                                          <tr key={t.id}>
@@ -561,8 +644,8 @@ export default function WuregStore() {
                     {activeAdminTab === 'products' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                              <h3 className="text-2xl font-black">Produk</h3>
-                              <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true }); setIsProductModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                             <h3 className="text-2xl font-black">Produk</h3>
+                             <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true }); setIsProductModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                              {products.map(p => (
@@ -580,8 +663,8 @@ export default function WuregStore() {
                     {activeAdminTab === 'payments' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                              <h3 className="text-2xl font-black">Metode Pembayaran</h3>
-                              <button onClick={() => { setPaymentForm({ name: '', va_number: '', image_url: '' }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                             <h3 className="text-2xl font-black">Metode Pembayaran</h3>
+                             <button onClick={() => { setPaymentForm({ name: '', va_number: '', image_url: '' }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {paymentMethods.map(pm => (
@@ -597,8 +680,8 @@ export default function WuregStore() {
                     {activeAdminTab === 'contacts' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                              <h3 className="text-2xl font-black">Kontak Admin</h3>
-                              <button onClick={() => { setContactForm({ platform_name: '', url: '', image_url: '' }); setIsContactModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                             <h3 className="text-2xl font-black">Kontak Admin</h3>
+                             <button onClick={() => { setContactForm({ platform_name: '', url: '', image_url: '' }); setIsContactModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {contactMethods.map(cm => (
@@ -622,23 +705,37 @@ export default function WuregStore() {
         {/* --- MODALS --- */}
         {isFaqOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setIsFaqOpen(false)}><div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] max-w-md w-full relative"><button onClick={() => setIsFaqOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-zinc-800 rounded-full"><X size={20}/></button><h3 className="text-2xl font-black mb-6 flex items-center gap-2"><HelpCircle/> Bantuan & FAQ</h3><div className="space-y-4">{FAQ_DATA.map((faq, i) => (<div key={i} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl"><h4 className="font-bold text-sm mb-1 text-cyan-600">{faq.q}</h4><p className="text-sm text-slate-500">{faq.a}</p></div>))}</div></div></div>)}
 
+        {/* --- MODAL DETAIL TRANSAKSI & DOWNLOAD INVOICE --- */}
         {selectedTrxDetail && (
            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setSelectedTrxDetail(null)}>
               <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-                 <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
-                 <h3 className="text-xl font-black mb-1">Detail Transaksi</h3>
-                 <p className="text-sm text-slate-500 mb-6">ID: {selectedTrxDetail.id}</p>
-                 <div className="space-y-4 bg-slate-50 dark:bg-black/20 p-4 rounded-2xl mb-6">
-                    <div className="flex justify-between"><span className="text-sm text-slate-500">Tanggal</span><span className="font-bold text-sm">{new Date(selectedTrxDetail.created_at).toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-slate-500">Pembeli</span><span className="font-bold text-sm">{selectedTrxDetail.buyer_name}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-slate-500">Kontak</span><span className="font-bold text-sm">{selectedTrxDetail.buyer_email}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-slate-500">Device</span><span className="font-bold text-sm">{selectedTrxDetail.device_model}</span></div>
-                    <hr className="border-dashed border-slate-300 dark:border-white/10"/>
-                    <div className="flex justify-between"><span className="text-sm text-slate-500">Produk</span><span className="font-bold text-sm">{selectedTrxDetail.product_name}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-slate-500">Harga</span><span className="font-bold text-sm text-cyan-600">Rp {selectedTrxDetail.price?.toLocaleString()}</span></div>
-                    <div className="flex justify-between"><span className="text-sm text-slate-500">Payment</span><span className="font-bold text-sm uppercase">{selectedTrxDetail.payment_method}</span></div>
+                 {/* Area yang akan di-screenshot oleh html2canvas */}
+                 <div ref={invoiceRef} className="bg-white dark:bg-zinc-900 p-4">
+                     <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
+                     <div className="flex justify-between items-center mb-4 mt-2">
+                        <h3 className="text-xl font-black">INVOICE</h3>
+                        <span className="font-mono text-xs bg-slate-100 p-1 rounded">{selectedTrxDetail.id.slice(0,8)}</span>
+                     </div>
+                     <div className="space-y-4 bg-slate-50 dark:bg-black/20 p-4 rounded-2xl mb-6">
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Tanggal</span><span className="font-bold text-sm">{new Date(selectedTrxDetail.created_at).toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Pembeli</span><span className="font-bold text-sm">{selectedTrxDetail.buyer_name}</span></div>
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Device/ID</span><span className="font-bold text-sm">{selectedTrxDetail.device_model}</span></div>
+                        <hr className="border-dashed border-slate-300 dark:border-white/10"/>
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Produk</span><span className="font-bold text-sm">{selectedTrxDetail.product_name}</span></div>
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Total Bayar</span><span className="font-bold text-sm text-cyan-600">Rp {selectedTrxDetail.price?.toLocaleString()}</span></div>
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Status</span><span className={`font-bold text-sm uppercase ${selectedTrxDetail.status === 'Selesai' ? 'text-green-600' : 'text-yellow-600'}`}>{selectedTrxDetail.status}</span></div>
+                     </div>
+                     <div className="text-center text-xs text-slate-400">Terima kasih telah berbelanja di WuregStore</div>
                  </div>
-                 <div className="flex gap-2"><button onClick={() => handleUpdateStatus(selectedTrxDetail.id, selectedTrxDetail.status)} className={`flex-1 py-3 rounded-xl font-bold text-white transition-all ${selectedTrxDetail.status === 'Selesai' ? 'bg-green-600' : selectedTrxDetail.status === 'Gagal' ? 'bg-red-600' : 'bg-yellow-500'}`}>Ubah Status ({selectedTrxDetail.status})</button><button onClick={() => setSelectedTrxDetail(null)} className="px-4 py-3 bg-slate-100 dark:bg-white/10 rounded-xl font-bold">Tutup</button></div>
+
+                 {/* Tombol Aksi (Tidak ikut di-screenshot) */}
+                 <div className="flex flex-col gap-2 mt-2">
+                     <button onClick={downloadInvoice} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold flex justify-center items-center gap-2"><Download size={18}/> Download JPG</button>
+                     <div className="flex gap-2">
+                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, selectedTrxDetail.status)} className={`flex-1 py-3 rounded-xl font-bold text-white transition-all ${selectedTrxDetail.status === 'Selesai' ? 'bg-green-600' : selectedTrxDetail.status === 'Gagal' ? 'bg-red-600' : 'bg-yellow-500'}`}>Ubah Status</button>
+                        <button onClick={() => setSelectedTrxDetail(null)} className="px-4 py-3 bg-slate-100 dark:bg-white/10 rounded-xl font-bold">Tutup</button>
+                     </div>
+                 </div>
               </div>
            </div>
         )}
@@ -651,6 +748,7 @@ export default function WuregStore() {
 
         {isContactOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}><div className="bg-white p-6 rounded-3xl max-w-sm w-full"><h3 className="font-bold text-xl mb-4 text-center">Hubungi Admin</h3><div className="space-y-3">{contactMethods.map(c=><a key={c.id} href={c.url} target="_blank" className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl font-bold transition hover:bg-slate-200">{c.image_url ? <img src={c.image_url} className="w-6 h-6"/> : <Mail size={20}/>} {c.platform_name}</a>)}</div></div></div>)}
         
+        {/* --- MODAL CHECKOUT (UPDATED) --- */}
         {selectedProduct && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
             <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
@@ -663,15 +761,41 @@ export default function WuregStore() {
                      <div className="h-12 w-12 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center text-cyan-600 font-black">{selectedProduct.name.slice(0,1)}</div>
                      <div><h4 className="font-bold">{selectedProduct.name}</h4><p className="text-sm text-slate-500">{selectedProduct.category} • Rp {selectedProduct.price.toLocaleString()}</p></div>
                   </div>
+                  
                   {checkoutStep === 1 ? (
                     <div className="space-y-4 animate-slideIn">
                        <div><label className="text-xs font-bold text-slate-500 ml-1">NAMA LENGKAP</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.name ? 'border-2 border-red-500' : ''}`} placeholder="Nama Anda" value={buyerForm.name} onChange={e=>setBuyerForm({...buyerForm, name: e.target.value})}/>{formErrors.name && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.name}</p>}</div>
                        <div><label className="text-xs font-bold text-slate-500 ml-1">NO. HP / EMAIL</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.email ? 'border-2 border-red-500' : ''}`} placeholder="08... atau email@..." value={buyerForm.email} onChange={e=>setBuyerForm({...buyerForm, email: e.target.value})}/>{formErrors.email && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.email}</p>}</div>
+                       
+                       {/* LOGIC FIELD BERDASARKAN KATEGORI */}
                        {selectedProduct.category === 'Akun' && (<div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-500/30"><label className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1"><Smartphone size={12}/> DEVICE MODEL (WAJIB)</label><input className="w-full bg-white dark:bg-black/50 p-3 rounded-lg font-bold mt-2 outline-none" placeholder="Contoh: Android, iPhone 11" value={buyerForm.device_model} onChange={e=>setBuyerForm({...buyerForm, device_model: e.target.value})}/>{formErrors.device_model && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.device_model}</p>}</div>)}
+
+                       {selectedProduct.category === 'TopUp' && (
+                          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-500/30">
+                              <label className="text-xs font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1"><Gamepad2 size={12}/> MASUKKAN ID GAME</label>
+                              <div className="flex gap-2 mt-2">
+                                  <input className="flex-[2] bg-white dark:bg-black/50 p-3 rounded-lg font-bold outline-none" placeholder="User ID" value={topUpForm.userId} onChange={e=>setTopUpForm({...topUpForm, userId: e.target.value})}/>
+                                  <input className="flex-1 bg-white dark:bg-black/50 p-3 rounded-lg font-bold outline-none" placeholder="Zone ID" value={topUpForm.zoneId} onChange={e=>setTopUpForm({...topUpForm, zoneId: e.target.value})}/>
+                              </div>
+                              <button onClick={checkGameNick} disabled={isCheckingNick || !topUpForm.userId} className="mt-3 w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-xs hover:bg-purple-700 disabled:opacity-50">{isCheckingNick ? <Loader2 className="animate-spin mx-auto" size={16}/> : 'CEK ID'}</button>
+                              {accNick && <div className="mt-2 text-center font-black text-green-600 bg-green-100 py-1 rounded">Nick: {accNick}</div>}
+                              {formErrors.game_id && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.game_id}</p>}
+                          </div>
+                       )}
+
                        <button onClick={handleNextStep} className="w-full bg-slate-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl mt-4 flex justify-center items-center gap-2">Lanjut Pembayaran <ChevronRight size={18}/></button>
                     </div>
                   ) : (
                     <div className="space-y-4 animate-slideIn">
+                       {/* VOUCHER FIELD */}
+                       <div className="flex gap-2 mb-4">
+                           <div className="relative flex-1">
+                               <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                               <input className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-black/50 rounded-xl font-bold text-sm uppercase outline-none border border-slate-200" placeholder="KODE VOUCHER" value={voucherCode} onChange={e=>setVoucherCode(e.target.value)}/>
+                           </div>
+                           <button onClick={handleApplyVoucher} disabled={voucherLoading} className="px-4 bg-slate-900 text-white rounded-xl font-bold text-xs">{voucherLoading ? '...' : 'APPLY'}</button>
+                       </div>
+                       
                        <p className="text-xs font-bold text-slate-500 ml-1">PILIH METODE</p>
                        <div className="space-y-3">
                           {paymentMethods.length === 0 ? <p className="text-center text-sm text-slate-400 py-4">Belum ada metode pembayaran.</p> : paymentMethods.map(m => (
@@ -687,6 +811,14 @@ export default function WuregStore() {
                              </div>
                           ))}
                        </div>
+
+                       {/* TOTAL PRICE SUMMARY */}
+                       <div className="bg-slate-50 dark:bg-black/40 p-4 rounded-xl space-y-2">
+                           <div className="flex justify-between text-sm"><span>Harga Awal</span><span>Rp {selectedProduct.price.toLocaleString()}</span></div>
+                           {appliedVoucher && <div className="flex justify-between text-sm text-green-500"><span>Diskon ({appliedVoucher.code})</span><span>- Rp {appliedVoucher.amount.toLocaleString()}</span></div>}
+                           <div className="flex justify-between font-black text-lg pt-2 border-t border-slate-200"><span>Total Bayar</span><span>Rp {finalPrice.toLocaleString()}</span></div>
+                       </div>
+
                        <div className="flex gap-3 mt-6"><button onClick={() => setCheckoutStep(1)} className="flex-1 py-4 bg-slate-100 dark:bg-zinc-800 rounded-xl font-bold">Kembali</button><button disabled={!selectedPayment || isSubmitting} onClick={handleCheckoutSubmit} className="flex-[2] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50">Konfirmasi Order</button></div>
                     </div>
                   )}
