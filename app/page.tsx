@@ -8,7 +8,7 @@ import {
   Loader2, AlertCircle,
   Calendar, TrendingUp, Download,
   RefreshCw, ExternalLink, Mail, Star, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, AlertTriangle
+  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, AlertTriangle, Link as LinkIcon
 } from 'lucide-react';
 
 // --- 1. SETUP ENV & SUPABASE ---
@@ -100,7 +100,7 @@ export default function WuregStore() {
   // Staff State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [staffPinInput, setStaffPinInput] = useState('');
-  const [isStaffLoginLoading, setIsStaffLoginLoading] = useState(false); // FIXED: Added missing state
+  const [isStaffLoginLoading, setIsStaffLoginLoading] = useState(false); 
   const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments' | 'contacts'>('dashboard');
   
   // Staff: Transactions & Detail
@@ -303,7 +303,8 @@ export default function WuregStore() {
       const { data, error } = await supabase.from('transactions').insert([trxData]).select();
       if (error) throw error;
       const newTrxId = data?.[0]?.id || 'NEW';
-      const waLink = contactMethods.find(c => c.platform_name.toLowerCase().includes('whatsapp'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
+      // Safe find for WhatsApp
+      const waLink = contactMethods.find(c => (c.platform_name || '').toLowerCase().includes('whatsapp'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
       const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price.toLocaleString()}\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${selectedProduct.category === 'Akun' ? `📱 ${buyerForm.device_model}\n` : ''}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
       window.open(`${waLink}?text=${encodeURIComponent(msg)}`, '_blank');
       showToast("Order Berhasil!", "success");
@@ -316,15 +317,16 @@ export default function WuregStore() {
 
   // --- MEMOS ---
   const filteredProducts = useMemo(() => {
-    let result = products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) && (selectedCategory === 'All' || p.category === selectedCategory));
+    let result = products.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && (selectedCategory === 'All' || p.category === selectedCategory));
     if (sortBy === 'price_low') result.sort((a, b) => a.price - b.price);
     else if (sortBy === 'price_high') result.sort((a, b) => b.price - a.price);
-    else if (sortBy === 'name') result.sort((a, b) => a.name.localeCompare(b.name));
+    else if (sortBy === 'name') result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     return result;
   }, [products, searchQuery, selectedCategory, sortBy]);
 
   const filteredAdminTrx = useMemo(() => transactions.filter(t => 
     (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
+    (t.product_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) ||
     (t.id || "").toString().includes(adminSearchTrx)
   ), [transactions, adminSearchTrx]);
 
@@ -484,7 +486,7 @@ export default function WuregStore() {
                              </div>
                              <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
                                 <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={20} className="text-blue-500"/> Metode Pembayaran</h4>
-                                <div className="space-y-4">{Object.entries(paymentCount).map(([method, count]: any) => (<div key={method}><div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div></div></div>))}</div>
+                                <div className="space-y-4">{Object.entries(paymentCount).map(([method, count]: any) => (<div key={method}><div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${transactions.length > 0 ? (count / transactions.length) * 100 : 0}%`}}></div></div></div>))}</div>
                              </div>
                           </div>
                        </div>
@@ -503,7 +505,7 @@ export default function WuregStore() {
                                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                                       {filteredAdminTrx.map(t => (
                                          <tr key={t.id}>
-                                            <td className="p-4"><span className="font-mono text-xs bg-slate-100 dark:bg-white/10 p-1 rounded">{t.id?.slice(0,6) || '#'}</span></td>
+                                            <td className="p-4"><span className="font-mono text-xs bg-slate-100 dark:bg-white/10 p-1 rounded">{t.id?.toString().slice(0,6) || '#'}</span></td>
                                             <td className="p-4"><div className="font-bold">{t.product_name}</div></td>
                                             <td className="p-4"><div className="font-bold text-xs">{t.buyer_name}</div><div className="text-xs opacity-60">{t.buyer_email}</div></td>
                                             <td className="p-4"><span className="text-xs font-mono">{t.device_model || '-'}</span></td>
@@ -518,6 +520,7 @@ export default function WuregStore() {
                       </div>
                     )}
 
+                    {/* ... (Tabs for Products, Payments, Contacts similar to previous response) ... */}
                     {activeAdminTab === 'products' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
