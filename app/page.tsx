@@ -234,7 +234,6 @@ export default function WuregStore() {
         price: parseInt(productForm.price.toString()),
         category: productForm.category,
         image_url: productForm.image_url,
-        // icon: getIconByCategory(productForm.category) // Logic auto-icon bisa ditambah disini
      };
 
      try {
@@ -294,12 +293,30 @@ export default function WuregStore() {
       if (error) throw error;
       const newTrxId = data?.[0]?.id || 'NEW';
       const msg = `Halo Admin, Order Baru!\n📦 ${selectedProduct.name}\n💰 Rp ${selectedProduct.price}\n👤 ${buyerForm.name}\n🆔 ${newTrxId}`;
+      
+      // FIX: Menambahkan backticks (`) agar variabel bisa dibaca
       window.open(`https://wa.me/${ADMIN_PHONE}?text=${encodeURIComponent(msg)}`, '_blank');
+      
       showToast("Sukses!", "success");
       setSelectedProduct(null);
       setCheckoutStep(1);
     } catch (err) { showToast("Gagal", "error"); } 
     finally { setIsSubmitting(false); }
+  };
+
+  const handleStaffLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabase) return;
+    try {
+      const { data, error } = await supabase.from('accounts').select('*').eq('password', staffPinInput).single();
+      if (data && !error) {
+        setIsStaffLoggedIn(true);
+        setStaffPinInput('');
+        showToast("Login Berhasil", "success");
+      } else {
+        showToast("PIN Salah!", "error");
+      }
+    } catch (err: any) { showToast("Error login", "error"); }
   };
 
   // --- MEMOS ---
@@ -313,9 +330,9 @@ export default function WuregStore() {
   const filteredAdminTransactions = useMemo(() => {
      if (!adminSearchTrx) return transactions;
      return transactions.filter(t => 
-        t.buyer_name?.toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
-        t.product_name?.toLowerCase().includes(adminSearchTrx.toLowerCase()) ||
-        t.id?.toString().includes(adminSearchTrx)
+        (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
+        (t.product_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) ||
+        (t.id || "").toString().includes(adminSearchTrx)
      );
   }, [transactions, adminSearchTrx]);
 
@@ -364,7 +381,7 @@ export default function WuregStore() {
         {/* CONTENT */}
         <main className="container mx-auto px-4 pt-36 pb-20 min-h-screen relative z-10">
           {activePage === 'home' ? (
-             // --- STORE PAGE (Simplified for brevity, similar to previous) ---
+             // --- STORE PAGE ---
              <div className="space-y-12 animate-fadeIn">
                 <div className="text-center py-16 px-4 rounded-[3rem] border border-white/50 dark:border-white/10 bg-white/30 dark:bg-zinc-900/30 backdrop-blur-md shadow-xl">
                   <h1 className="text-5xl font-black mb-6 bg-clip-text text-transparent bg-gradient-to-r from-cyan-600 to-purple-600">Digital Needs.<br/><span className="text-slate-800 dark:text-white">Solved.</span></h1>
@@ -402,7 +419,7 @@ export default function WuregStore() {
                  <div className="max-w-md mx-auto bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-10 rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-2xl mt-20 text-center">
                     <ShieldCheck size={48} className="mx-auto mb-4 text-cyan-600"/>
                     <h2 className="text-3xl font-black mb-2 text-slate-900 dark:text-white">Staff Access</h2>
-                    <form onSubmit={(e) => { e.preventDefault(); if(staffPinInput === '1234' || true) { setIsStaffLoggedIn(true); handleStaffLogin(e); } /* Mocked for UI demo, use real auth */ }} className="space-y-6 mt-6">
+                    <form onSubmit={handleStaffLogin} className="space-y-6 mt-6">
                        <input type="password" value={staffPinInput} onChange={e=>setStaffPinInput(e.target.value)} className="w-full bg-slate-50 dark:bg-black/50 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-center text-3xl tracking-[0.5em] font-bold outline-none focus:border-cyan-500" placeholder="••••"/>
                        <button className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold py-4 rounded-2xl hover:-translate-y-1 transition-all">LOGIN</button>
                     </form>
@@ -533,7 +550,7 @@ export default function WuregStore() {
            </div>
         )}
         
-        {/* Contact Popup & Checkout Modal (Same as before, hidden for brevity but included in structure) */}
+        {/* Contact Popup & Checkout Modal */}
         {isContactOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}><div className="bg-white p-6 rounded-3xl max-w-sm w-full"><h3 className="font-bold text-xl mb-4">Hubungi Admin</h3><div className="space-y-2">{SOCIALS.map(s=><a key={s.name} href={s.url} target="_blank" className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl font-bold">{s.icon} {s.name}</a>)}</div></div></div>)}
         
         {selectedProduct && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"><div className="bg-white p-6 rounded-3xl max-w-md w-full"><h3 className="font-bold text-xl">Checkout {selectedProduct.name}</h3><div className="mt-4"><input className="w-full p-3 bg-slate-100 rounded-xl mb-3" placeholder="Nama" value={buyerForm.name} onChange={e=>setBuyerForm({...buyerForm, name: e.target.value})}/><input className="w-full p-3 bg-slate-100 rounded-xl mb-3" placeholder="Kontak" value={buyerForm.email} onChange={e=>setBuyerForm({...buyerForm, email: e.target.value})}/><button onClick={handleCheckoutSubmit} className="w-full bg-cyan-600 text-white py-3 rounded-xl font-bold">Beli Sekarang</button><button onClick={()=>setSelectedProduct(null)} className="w-full mt-2 text-slate-400 font-bold">Batal</button></div></div></div>)}
