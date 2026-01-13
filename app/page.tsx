@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import html2canvas from 'html2canvas'; // Pastikan sudah: npm install html2canvas
+import html2canvas from 'html2canvas'; 
 import { 
   Menu, X, Search, ShoppingCart, LogOut, 
   Smartphone, Monitor, CreditCard, CheckCircle, 
@@ -9,10 +9,12 @@ import {
   Loader2, AlertCircle,
   Download, ExternalLink, Mail, Copy, AlignJustify,
   ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, 
-  ChevronLeft, Gamepad2, Ticket, AlertTriangle, Star
+  ChevronLeft, Gamepad2, Ticket, AlertTriangle, Star,
+  RefreshCw, CheckSquare, Square, ToggleLeft, ToggleRight, MoreVertical, Filter, 
+  Calendar, FileSpreadsheet, Clock
 } from 'lucide-react';
 
-// --- 1. SETUP ENV & SUPABASE ---
+// --- 1. SETUP ENV & SUPABASE HELPER ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
 
@@ -37,7 +39,8 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
         order: (column: string, { ascending = true } = {}) => { url.searchParams.set('order', `${column}.${ascending ? 'asc' : 'desc'}`); return builder; },
         eq: (column: string, value: any) => { url.searchParams.set(column, `eq.${value}`); return builder; },
         gte: (column: string, value: any) => { url.searchParams.set(column, `gte.${value}`); return builder; },
-        range: (from: number, to: number) => { return builder; }, // Client side pagination used for smooth UX
+        lte: (column: string, value: any) => { url.searchParams.set(column, `lte.${value}`); return builder; }, // Added LTE for date range
+        in: (column: string, values: any[]) => { url.searchParams.set(column, `in.(${values.join(',')})`); return builder; },
         single: () => { isSingle = true; return builder; },
         insert: (data: any) => { method = 'POST'; body = JSON.stringify(data); return builder; },
         update: (data: any) => { method = 'PATCH'; body = JSON.stringify(data); return builder; }, 
@@ -53,7 +56,7 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
               return { data: result, error: null };
             } catch (err: any) { return { data: null, error: { message: err.message } }; }
           };
-          return execute().then((res) => resolve(res)).catch((err) => reject(err));
+          return execute().then((res: any) => resolve(res)).catch((err: any) => reject(err));
         }
       };
       return builder;
@@ -96,35 +99,54 @@ export default function WuregStore() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [contactMethods, setContactMethods] = useState<any[]>([]);
+  const [vouchers, setVouchers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 16;
+  
+  // Admin Transaction Pagination
+  const [adminTrxPage, setAdminTrxPage] = useState(1);
+  const ADMIN_TRX_PER_PAGE = 10;
 
   // Staff State
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [staffPinInput, setStaffPinInput] = useState('');
   const [isStaffLoginLoading, setIsStaffLoginLoading] = useState(false); 
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments' | 'contacts'>('dashboard');
+  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments' | 'contacts' | 'vouchers'>('dashboard');
   
-  // Staff: Transactions & Detail
-  const [reportFilter, setReportFilter] = useState<'today' | 'week' | 'month' | 'all'>('all');
+  // Staff: Selection & Bulk Actions
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
+  const [selectedVoucherIds, setSelectedVoucherIds] = useState<string[]>([]);
+  const [selectedTrxIds, setSelectedTrxIds] = useState<string[]>([]);
+
+  // Staff: Transactions & Detail & Filters
+  const [dateRange, setDateRange] = useState<{start: string, end: string}>({ start: '', end: '' });
+  const [statusFilter, setStatusFilter] = useState<'all' | 'Pending' | 'Proses' | 'Selesai' | 'Gagal'>('all');
   const [adminSearchTrx, setAdminSearchTrx] = useState('');
-  const [statusUpdateId, setStatusUpdateId] = useState<string | null>(null);
   const [selectedTrxDetail, setSelectedTrxDetail] = useState<any>(null);
-  const invoiceRef = useRef<HTMLDivElement>(null); // Ref untuk download invoice
+  const invoiceRef = useRef<HTMLDivElement>(null);
 
   // Staff: CRUD Modals
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false); 
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
+  
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [editingPayment, setEditingPayment] = useState<any>(null);
+  const [editingContact, setEditingContact] = useState<any>(null);
+  const [editingVoucher, setEditingVoucher] = useState<any>(null);
   
   // Forms
   const [productForm, setProductForm] = useState({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true });
-  const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', image_url: '' });
-  const [contactForm, setContactForm] = useState({ platform_name: '', url: '', image_url: '' });
+  const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', image_url: '', is_active: true });
+  const [contactForm, setContactForm] = useState({ platform_name: '', url: '', image_url: '', is_active: true });
+  const [voucherForm, setVoucherForm] = useState({ code: '', amount: '', is_active: true });
 
   // Store & Checkout State
   const [searchQuery, setSearchQuery] = useState('');
@@ -140,7 +162,7 @@ export default function WuregStore() {
   const [accNick, setAccNick] = useState('');
   const [isCheckingNick, setIsCheckingNick] = useState(false);
 
-  // Voucher State
+  // Voucher State (User Side)
   const [voucherCode, setVoucherCode] = useState('');
   const [appliedVoucher, setAppliedVoucher] = useState<{code: string, amount: number} | null>(null);
   const [voucherLoading, setVoucherLoading] = useState(false);
@@ -156,9 +178,7 @@ export default function WuregStore() {
 
   useEffect(() => {
     setMounted(true);
-    fetchProducts();
-    fetchPaymentMethods();
-    fetchContactMethods();
+    refreshAllData();
     const savedLogin = localStorage.getItem('isStaffLoggedIn');
     if (savedLogin === 'true') setIsStaffLoggedIn(true);
   }, []);
@@ -166,10 +186,25 @@ export default function WuregStore() {
   useEffect(() => {
     if (isStaffLoggedIn) {
       fetchFilteredTransactions();
+      fetchVouchers();
     }
-  }, [reportFilter, isStaffLoggedIn]);
+  }, [isStaffLoggedIn, dateRange]); // Refetch on date range change
 
-  // --- ACTIONS (FETCH) ---
+  // --- ACTIONS (FETCH & REFRESH) ---
+  const refreshAllData = async () => {
+    setIsRefreshing(true);
+    await Promise.all([
+      fetchProducts(),
+      fetchPaymentMethods(),
+      fetchContactMethods()
+    ]);
+    if(isStaffLoggedIn) {
+        await fetchFilteredTransactions();
+        await fetchVouchers();
+    }
+    setIsRefreshing(false);
+  };
+
   const fetchProducts = async () => {
     setIsLoading(true);
     try {
@@ -181,37 +216,79 @@ export default function WuregStore() {
   };
 
   const fetchPaymentMethods = async () => {
-    const { data } = await supabase.from('payment_methods').select('*').eq('is_active', true);
+    const { data } = await supabase.from('payment_methods').select('*').order('created_at', { ascending: true });
     setPaymentMethods(data || []);
   };
 
   const fetchContactMethods = async () => {
-    const { data } = await supabase.from('contact_methods').select('*').eq('is_active', true);
+    const { data } = await supabase.from('contact_methods').select('*').order('created_at', { ascending: true });
     setContactMethods(data || []);
+  };
+
+  const fetchVouchers = async () => {
+    const { data } = await supabase.from('vouchers').select('*').order('created_at', { ascending: false });
+    setVouchers(data || []);
   };
 
   const fetchFilteredTransactions = async () => {
     if (!supabase) return;
     try {
-      const now = new Date();
-      let startDate = null;
-      if (reportFilter === 'today') startDate = new Date(now.setHours(0, 0, 0, 0)).toISOString();
-      if (reportFilter === 'week') { const d = new Date(); d.setDate(d.getDate() - 7); startDate = d.toISOString(); }
-      if (reportFilter === 'month') { const d = new Date(); d.setMonth(d.getMonth() - 1); startDate = d.toISOString(); }
-
       let query = supabase.from('transactions').select('*').order('created_at', { ascending: false });
-      if (startDate) query = query.gte('created_at', startDate);
+      
+      // Apply Date Filter if set
+      if (dateRange.start) {
+         const startDate = new Date(dateRange.start);
+         query = query.gte('created_at', startDate.toISOString());
+      }
+      if (dateRange.end) {
+         const endDate = new Date(dateRange.end);
+         endDate.setHours(23, 59, 59, 999); // End of day
+         query = query.lte('created_at', endDate.toISOString());
+      }
+
       const { data } = await query;
       setTransactions(data || []);
     } catch (err) { showToast("Gagal memuat laporan", "error"); }
   };
 
-  // --- ACTIONS (VOUCHER & CHECK NICK) ---
+  // --- ACTIONS (BULK ACTIONS) ---
+  const handleBulkDelete = async (table: string, ids: string[], setter: React.Dispatch<React.SetStateAction<any[]>>, selectionSetter: React.Dispatch<React.SetStateAction<string[]>>) => {
+    if(ids.length === 0) return;
+    if(!confirm(`Hapus ${ids.length} item yang dipilih?`)) return;
+    
+    try {
+        await supabase.from(table).delete().in('id', ids);
+        setter(prev => prev.filter(item => !ids.includes(item.id)));
+        selectionSetter([]); 
+        showToast("Bulk Delete Sukses", "success");
+    } catch (err) {
+        showToast("Gagal menghapus", "error");
+    }
+  };
+
+  const toggleSelection = (id: string, currentList: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) => {
+    if(currentList.includes(id)) setter(currentList.filter(x => x !== id));
+    else setter([...currentList, id]);
+  };
+
+  const handleSelectAll = (items: any[], currentList: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) => {
+    if (currentList.length === items.length) setter([]);
+    else setter(items.map(item => item.id));
+  };
+
+  const toggleActiveStatus = async (table: string, id: string, currentStatus: boolean, localSetter: React.Dispatch<React.SetStateAction<any[]>>) => {
+    try {
+        await supabase.from(table).update({ is_active: !currentStatus }).eq('id', id);
+        localSetter(prev => prev.map(item => item.id === id ? { ...item, is_active: !currentStatus } : item));
+        showToast("Status Diupdate", "success");
+    } catch (err) { showToast("Gagal update status", "error"); }
+  };
+
+  // --- ACTIONS (BUYER SIDE) ---
   const handleApplyVoucher = async () => {
     if(!voucherCode) return showToast("Masukkan kode voucher", "error");
     setVoucherLoading(true);
     try {
-        // Ganti dengan table 'vouchers' di supabase
         const { data, error } = await supabase.from('vouchers').select('*').eq('code', voucherCode).eq('is_active', true).single();
         if (error || !data) {
             showToast("Kode voucher tidak valid / habis", "error");
@@ -228,17 +305,12 @@ export default function WuregStore() {
     if(!topUpForm.userId) return showToast("Masukkan User ID", "error");
     setIsCheckingNick(true);
     setAccNick('');
-    
-    // --- SIMULASI API CHECK NAME ---
-    // Di sini Anda bisa fetch ke API Provider (e.g., Digiflazz, Vola, Atlantic)
-    // Karena ini environment statis, kita mock response sukses.
     setTimeout(() => {
-        setAccNick('WuregPlayer_test'); // Mock Result
+        setAccNick('WuregPlayer_test'); 
         setIsCheckingNick(false);
     }, 1500);
   };
 
-  // --- ACTIONS (DOWNLOAD INVOICE) ---
   const downloadInvoice = async () => {
     if (!invoiceRef.current) return;
     try {
@@ -249,10 +321,37 @@ export default function WuregStore() {
         link.download = `Invoice-${selectedTrxDetail?.id || 'TRX'}.jpg`;
         link.click();
         showToast("Invoice berhasil didownload", "success");
-    } catch (err) {
-        showToast("Gagal download invoice", "error");
-        console.error(err);
-    }
+    } catch (err) { showToast("Gagal download invoice", "error"); }
+  };
+
+  const exportToCSV = () => {
+    if (filteredAdminTrx.length === 0) return showToast("Tidak ada data untuk diexport", "error");
+    
+    const headers = ["ID", "Tanggal", "Buyer Name", "Buyer Email", "Produk", "Harga", "Metode Pembayaran", "Device/ID", "Status"];
+    const rows = filteredAdminTrx.map(t => [
+        t.id,
+        new Date(t.created_at).toLocaleString(),
+        `"${t.buyer_name}"`,
+        t.buyer_email,
+        `"${t.product_name}"`,
+        t.price,
+        t.payment_method,
+        `"${t.device_model}"`,
+        t.status
+    ]);
+
+    let csvContent = "data:text/csv;charset=utf-8," 
+        + headers.join(",") + "\n" 
+        + rows.map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `Report_Trx_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast("Report berhasil didownload", "success");
   };
 
   // --- ACTIONS (STAFF CRUD) ---
@@ -268,62 +367,62 @@ export default function WuregStore() {
      } catch (err) { showToast("Gagal", "error"); }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-     if(!confirm("Hapus?")) return;
-     await supabase.from('products').delete().eq('id', id);
-     setProducts(prev => prev.filter(p => p.id !== id));
-  };
-
   const handleSavePayment = async () => {
     if(!paymentForm.name) return showToast("Data kurang", "error");
-    await supabase.from('payment_methods').insert([paymentForm]);
-    setIsPaymentModalOpen(false);
-    fetchPaymentMethods();
-    showToast("Sukses", "success");
-  };
-
-  const handleDeletePayment = async (id: string) => {
-    if(!confirm("Hapus?")) return;
-    await supabase.from('payment_methods').delete().eq('id', id);
-    setPaymentMethods(prev => prev.filter(p => p.id !== id));
+    try {
+        if(editingPayment) await supabase.from('payment_methods').update(paymentForm).eq('id', editingPayment.id);
+        else await supabase.from('payment_methods').insert([paymentForm]);
+        setIsPaymentModalOpen(false);
+        fetchPaymentMethods();
+        showToast("Payment Sukses Disimpan", "success");
+    } catch (err) { showToast("Gagal simpan payment", "error"); }
   };
 
   const handleSaveContact = async () => {
     if(!contactForm.platform_name || !contactForm.url) return showToast("Data kurang", "error");
-    await supabase.from('contact_methods').insert([contactForm]);
-    setIsContactModalOpen(false);
-    fetchContactMethods();
-    showToast("Kontak Ditambah", "success");
+    try {
+        if(editingContact) await supabase.from('contact_methods').update(contactForm).eq('id', editingContact.id);
+        else await supabase.from('contact_methods').insert([contactForm]);
+        setIsContactModalOpen(false);
+        fetchContactMethods();
+        showToast("Kontak Sukses Disimpan", "success");
+    } catch (err) { showToast("Gagal simpan kontak", "error"); }
   };
 
-  const handleDeleteContact = async (id: string) => {
-    if(!confirm("Hapus kontak ini?")) return;
-    await supabase.from('contact_methods').delete().eq('id', id);
-    setContactMethods(prev => prev.filter(c => c.id !== id));
+  const handleSaveVoucher = async () => {
+    if(!voucherForm.code || !voucherForm.amount) return showToast("Data kurang", "error");
+    const payload = { ...voucherForm, amount: parseInt(voucherForm.amount.toString()) };
+    try {
+        if(editingVoucher) await supabase.from('vouchers').update(payload).eq('id', editingVoucher.id);
+        else await supabase.from('vouchers').insert([payload]);
+        setIsVoucherModalOpen(false);
+        fetchVouchers();
+        showToast("Voucher Sukses Disimpan", "success");
+    } catch (err) { showToast("Gagal simpan voucher", "error"); }
   };
 
-  const handleUpdateStatus = async (transactionId: string, currentStatus: string) => {
-    let newStatus = currentStatus === 'Pending' ? 'Selesai' : currentStatus === 'Selesai' ? 'Gagal' : 'Pending';
-    setStatusUpdateId(transactionId);
+  // --- TRANSACTION MANAGEMENT (UPDATED) ---
+  const handleUpdateStatus = async (transactionId: string, newStatus: string) => {
     try {
       await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
       setTransactions(prev => prev.map(t => t.id === transactionId ? { ...t, status: newStatus } : t));
       if(selectedTrxDetail && selectedTrxDetail.id === transactionId) setSelectedTrxDetail({...selectedTrxDetail, status: newStatus});
-      showToast(`Status: ${newStatus}`, "success");
-    } catch (err) { showToast("Gagal", "error"); } 
-    finally { setStatusUpdateId(null); }
+      showToast(`Status diubah: ${newStatus}`, "success");
+    } catch (err) { showToast("Gagal update status", "error"); } 
   };
 
-  const handleDeleteTransaction = async (id: string) => {
-    if(!confirm("Hapus permanen?")) return;
+  const handleBulkStatusUpdate = async (status: string) => {
+    if(selectedTrxIds.length === 0) return;
+    if(!confirm(`Ubah status ${selectedTrxIds.length} transaksi menjadi ${status}?`)) return;
+
     try {
-       await supabase.from('transactions').delete().eq('id', id);
-       setTransactions(prev => prev.filter(t => t.id !== id));
-       showToast("Dihapus", "success");
-    } catch(err) { showToast("Gagal hapus", "error"); }
+        await supabase.from('transactions').update({ status: status }).in('id', selectedTrxIds);
+        setTransactions(prev => prev.map(t => selectedTrxIds.includes(t.id) ? { ...t, status: status } : t));
+        setSelectedTrxIds([]);
+        showToast("Bulk Status Update Sukses", "success");
+    } catch (err) { showToast("Gagal update bulk", "error"); }
   };
 
-  // --- ACTIONS (USER) ---
   const handleStaffLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsStaffLoginLoading(true);
@@ -345,44 +444,21 @@ export default function WuregStore() {
     setActivePage('home');
   };
 
-  // --- VALIDATION & CHECKOUT ---
   const handleNextStep = () => {
     let isValid = true;
     let errors = { name: '', email: '', device_model: '', game_id: '' };
-    
     if (buyerForm.name.length < 3) { errors.name = 'Min 3 karakter'; isValid = false; }
-    
     const phoneRegex = /^08[0-9]{8,13}$/;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
     if (!phoneRegex.test(buyerForm.email) && !emailRegex.test(buyerForm.email)) {
-       errors.email = 'Harus Email atau No. HP (08...)';
-       isValid = false;
+       errors.email = 'Harus Email atau No. HP (08...)'; isValid = false;
     }
-
-    if (selectedProduct?.category === 'Akun' && !buyerForm.device_model) { 
-       errors.device_model = 'Wajib diisi untuk Akun'; 
-       isValid = false; 
-    }
-
-    // Validasi TopUp
-    if (selectedProduct?.category === 'TopUp' && (!topUpForm.userId)) {
-       errors.game_id = 'ID Wajib diisi';
-       isValid = false;
-    }
-    // Jika TopUp, user harus cek nick dulu (Opsional tergantung kebijakan, tapi lebih aman dipaksa)
-    if (selectedProduct?.category === 'TopUp' && !accNick && topUpForm.userId) {
-       showToast("Silakan Cek ID terlebih dahulu!", "error");
-       isValid = false;
-    }
+    if (selectedProduct?.category === 'Akun' && !buyerForm.device_model) { errors.device_model = 'Wajib diisi untuk Akun'; isValid = false; }
+    if (selectedProduct?.category === 'TopUp' && (!topUpForm.userId)) { errors.game_id = 'ID Wajib diisi'; isValid = false; }
+    if (selectedProduct?.category === 'TopUp' && !accNick && topUpForm.userId) { showToast("Silakan Cek ID terlebih dahulu!", "error"); isValid = false; }
 
     setFormErrors(errors);
-    
-    if(isValid) {
-        setCheckoutStep(2);
-    } else {
-        showToast("Data belum lengkap!", "error");
-    }
+    if(isValid) setCheckoutStep(2); else showToast("Data belum lengkap!", "error");
   };
 
   const finalPrice = useMemo(() => {
@@ -395,12 +471,11 @@ export default function WuregStore() {
   const handleCheckoutSubmit = async () => {
     if (!selectedPayment) return showToast("Pilih metode pembayaran!", "error");
     setIsSubmitting(true);
-    
     const trxData = {
       buyer_name: buyerForm.name,
       buyer_email: buyerForm.email,
       product_name: selectedProduct.name,
-      price: finalPrice, // Simpan harga setelah diskon
+      price: finalPrice, 
       payment_method: selectedPayment.name,
       status: 'Pending',
       device_model: selectedProduct.category === 'TopUp' ? `${topUpForm.userId} (${topUpForm.zoneId}) - ${accNick}` : (buyerForm.device_model || '-'),
@@ -409,18 +484,9 @@ export default function WuregStore() {
       const { data, error } = await supabase.from('transactions').insert([trxData]).select();
       if (error) throw error;
       const newTrxId = data?.[0]?.id || 'NEW';
-      // Safe find for WhatsApp
       const waLink = contactMethods.find(c => (c.platform_name || '').toLowerCase().includes('whatsapp'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
-      
-      let msgDetails = ``;
-      if (selectedProduct.category === 'TopUp') {
-          msgDetails = `🎮 ID: ${topUpForm.userId} (${topUpForm.zoneId})\n👤 Nick: ${accNick}\n`;
-      } else if (selectedProduct.category === 'Akun') {
-          msgDetails = `📱 Device: ${buyerForm.device_model}\n`;
-      }
-
+      let msgDetails = selectedProduct.category === 'TopUp' ? `🎮 ID: ${topUpForm.userId} (${topUpForm.zoneId})\n👤 Nick: ${accNick}\n` : selectedProduct.category === 'Akun' ? `📱 Device: ${buyerForm.device_model}\n` : '';
       let voucherMsg = appliedVoucher ? `\n🎟️ Voucher: ${appliedVoucher.code} (-Rp ${appliedVoucher.amount.toLocaleString()})` : '';
-
       const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${finalPrice.toLocaleString()} ${voucherMsg}\n\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${msgDetails}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
       window.open(`${waLink}?text=${encodeURIComponent(msg)}`, '_blank');
       showToast("Order Berhasil!", "success");
@@ -435,7 +501,6 @@ export default function WuregStore() {
     finally { setIsSubmitting(false); }
   };
 
-  // --- MEMOS & PAGINATION ---
   const filteredProducts = useMemo(() => {
     let result = products.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && (selectedCategory === 'All' || p.category === selectedCategory));
     if (sortBy === 'price_low') result.sort((a, b) => a.price - b.price);
@@ -444,7 +509,6 @@ export default function WuregStore() {
     return result;
   }, [products, searchQuery, selectedCategory, sortBy]);
 
-  // Client-Side Pagination Logic
   const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
   const paginatedProducts = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -452,17 +516,25 @@ export default function WuregStore() {
   }, [filteredProducts, currentPage]);
 
   const changePage = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-        setCurrentPage(newPage);
-        window.scrollTo({ top: 400, behavior: 'smooth' });
-    }
+    if (newPage >= 1 && newPage <= totalPages) { setCurrentPage(newPage); window.scrollTo({ top: 400, behavior: 'smooth' }); }
   }
 
-  const filteredAdminTrx = useMemo(() => transactions.filter(t => 
-    (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
-    (t.product_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) ||
-    (t.id || "").toString().includes(adminSearchTrx)
-  ), [transactions, adminSearchTrx]);
+  // Admin Trx Logic
+  const filteredAdminTrx = useMemo(() => {
+    return transactions.filter(t => {
+      const matchSearch = (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
+                          (t.product_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) ||
+                          (t.id || "").toString().includes(adminSearchTrx);
+      const matchStatus = statusFilter === 'all' || t.status === statusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [transactions, adminSearchTrx, statusFilter]);
+
+  const totalAdminTrxPages = Math.ceil(filteredAdminTrx.length / ADMIN_TRX_PER_PAGE);
+  const paginatedAdminTrx = useMemo(() => {
+    const start = (adminTrxPage - 1) * ADMIN_TRX_PER_PAGE;
+    return filteredAdminTrx.slice(start, start + ADMIN_TRX_PER_PAGE);
+  }, [filteredAdminTrx, adminTrxPage]);
 
   const { totalRevenue, topProducts, paymentCount, lowStockCount } = useMemo(() => {
     const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
@@ -583,15 +655,20 @@ export default function WuregStore() {
                  </div>
                ) : (
                  <div className="space-y-6">
-                    <div className="flex flex-col md:flex-row justify-between items-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
-                       <div className="flex gap-2 p-1 bg-slate-100 dark:bg-black/40 rounded-full overflow-x-auto">
-                          <button onClick={() => setActiveAdminTab('dashboard')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
-                          <button onClick={() => setActiveAdminTab('transactions')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
-                          <button onClick={() => setActiveAdminTab('products')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Produk</button>
-                          <button onClick={() => setActiveAdminTab('payments')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payments</button>
-                          <button onClick={() => setActiveAdminTab('contacts')} className={`px-5 py-2.5 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'contacts' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Contacts</button>
+                    {/* STAFF HEADER & TABS */}
+                    <div className="flex flex-col xl:flex-row justify-between items-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm gap-4">
+                       <div className="flex flex-wrap justify-center gap-2 p-1 bg-slate-100 dark:bg-black/40 rounded-3xl">
+                          <button onClick={() => setActiveAdminTab('dashboard')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
+                          <button onClick={() => setActiveAdminTab('transactions')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
+                          <button onClick={() => setActiveAdminTab('products')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Produk</button>
+                          <button onClick={() => setActiveAdminTab('payments')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payments</button>
+                          <button onClick={() => setActiveAdminTab('vouchers')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'vouchers' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Vouchers</button>
+                          <button onClick={() => setActiveAdminTab('contacts')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'contacts' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Contacts</button>
                        </div>
-                       <button onClick={handleLogout} className="px-4 py-2 bg-red-50 text-red-500 rounded-full font-bold text-sm hover:bg-red-100 flex items-center gap-2"><LogOut size={16}/> Logout</button>
+                       <div className="flex gap-2">
+                           <button onClick={refreshAllData} className={`p-3 rounded-full bg-slate-100 dark:bg-white/10 text-cyan-600 hover:rotate-180 transition-all ${isRefreshing ? 'animate-spin' : ''}`} title="Refresh Data"><RefreshCw size={18}/></button>
+                           <button onClick={handleLogout} className="px-4 py-2 bg-red-50 text-red-500 rounded-full font-bold text-sm hover:bg-red-100 flex items-center gap-2"><LogOut size={16}/> Logout</button>
+                       </div>
                     </div>
 
                     {activeAdminTab === 'dashboard' && (
@@ -616,27 +693,108 @@ export default function WuregStore() {
                     {activeAdminTab === 'transactions' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
-                             <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
-                                <div className="flex gap-2">{['today', 'week', 'all'].map(f => (<button key={f} onClick={() => setReportFilter(f as any)} className={`px-4 py-1.5 rounded-full text-xs font-bold border ${reportFilter === f ? 'bg-cyan-500 text-white border-transparent' : 'bg-transparent border-slate-300 dark:border-white/20'}`}>{f.toUpperCase()}</button>))}</div>
-                                <input type="text" placeholder="Cari ID / Nama / Produk..." className="bg-slate-50 dark:bg-black/30 px-4 py-2 rounded-xl text-sm border-none focus:ring-2 ring-cyan-500/50" value={adminSearchTrx} onChange={(e) => setAdminSearchTrx(e.target.value)}/>
+                             {/* FILTER BAR */}
+                             <div className="flex flex-col gap-4 mb-6">
+                                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                                   <div className="flex gap-2 items-center overflow-x-auto pb-2 w-full md:w-auto">
+                                       <select value={statusFilter} onChange={(e) => {setStatusFilter(e.target.value as any); setAdminTrxPage(1);}} className="bg-slate-50 dark:bg-black/30 px-3 py-2 rounded-xl text-xs font-bold border-none outline-none cursor-pointer">
+                                          <option value="all">Semua Status</option>
+                                          <option value="Pending">Pending</option>
+                                          <option value="Proses">Proses</option>
+                                          <option value="Selesai">Selesai</option>
+                                          <option value="Gagal">Gagal</option>
+                                       </select>
+                                       <div className="h-6 w-[1px] bg-slate-300 dark:bg-white/20 mx-2"></div>
+                                       {/* DATE RANGE */}
+                                       <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/30 px-3 py-1.5 rounded-xl">
+                                          <Calendar size={14} className="text-slate-400"/>
+                                          <input type="date" className="bg-transparent border-none text-xs font-bold outline-none" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})}/>
+                                          <span className="text-xs">-</span>
+                                          <input type="date" className="bg-transparent border-none text-xs font-bold outline-none" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})}/>
+                                       </div>
+                                       <button onClick={() => setDateRange({start:'', end:''})} className="text-xs text-red-500 font-bold hover:underline">Reset</button>
+                                   </div>
+                                   <div className="flex gap-2 w-full md:w-auto">
+                                       <input type="text" placeholder="Cari ID / Nama..." className="bg-slate-50 dark:bg-black/30 px-4 py-2 rounded-xl text-sm border-none focus:ring-2 ring-cyan-500/50 w-full" value={adminSearchTrx} onChange={(e) => {setAdminSearchTrx(e.target.value); setAdminTrxPage(1);}}/>
+                                       <button onClick={exportToCSV} className="px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-green-700"><FileSpreadsheet size={16}/> Export</button>
+                                   </div>
+                                </div>
                              </div>
+
+                             {/* BULK ACTIONS TOOLBAR */}
+                             {selectedTrxIds.length > 0 && (
+                                <div className="mb-4 flex items-center gap-3 p-3 bg-slate-100 dark:bg-white/5 rounded-xl animate-fadeIn">
+                                    <span className="text-xs font-bold">{selectedTrxIds.length} Dipilih</span>
+                                    <div className="h-4 w-[1px] bg-slate-300"></div>
+                                    <button onClick={() => handleBulkDelete('transactions', selectedTrxIds, setTransactions, setSelectedTrxIds)} className="text-red-500 text-xs font-bold flex items-center gap-1 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/> Hapus</button>
+                                    <button onClick={() => handleBulkStatusUpdate('Selesai')} className="text-green-600 text-xs font-bold flex items-center gap-1 hover:bg-green-100 p-1.5 rounded"><CheckCircle size={14}/> Set Selesai</button>
+                                    <button onClick={() => handleBulkStatusUpdate('Proses')} className="text-blue-600 text-xs font-bold flex items-center gap-1 hover:bg-blue-100 p-1.5 rounded"><Clock size={14}/> Set Proses</button>
+                                </div>
+                             )}
+
                              <div className="overflow-x-auto">
                                 <table className="w-full text-sm text-left">
-                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5"><tr><th className="p-4 rounded-l-xl">ID</th><th className="p-4">Produk</th><th className="p-4">Kontak (HP/Email)</th><th className="p-4">Device/ID</th><th className="p-4">Status</th><th className="p-4 rounded-r-xl">Aksi</th></tr></thead>
+                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5">
+                                      <tr>
+                                        <th className="p-4 rounded-l-xl w-10">
+                                            <div onClick={() => handleSelectAll(paginatedAdminTrx, selectedTrxIds, setSelectedTrxIds)} className="cursor-pointer">
+                                                {paginatedAdminTrx.length > 0 && selectedTrxIds.length === paginatedAdminTrx.length ? <CheckSquare size={16} className="text-cyan-600"/> : <Square size={16}/>}
+                                            </div>
+                                        </th>
+                                        <th className="p-4">Tanggal & ID</th>
+                                        <th className="p-4">Produk & Harga</th>
+                                        <th className="p-4">Pembeli</th>
+                                        <th className="p-4">Payment</th>
+                                        <th className="p-4">Status</th>
+                                        <th className="p-4 rounded-r-xl">Aksi</th>
+                                      </tr>
+                                   </thead>
                                    <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                      {filteredAdminTrx.map(t => (
-                                         <tr key={t.id}>
-                                            <td className="p-4"><span className="font-mono text-xs bg-slate-100 dark:bg-white/10 p-1 rounded">{t.id?.toString().slice(0,6) || '#'}</span></td>
-                                            <td className="p-4"><div className="font-bold">{t.product_name}</div></td>
-                                            <td className="p-4"><div className="font-bold text-xs">{t.buyer_name}</div><div className="text-xs opacity-60">{t.buyer_email}</div></td>
-                                            <td className="p-4"><span className="text-xs font-mono">{t.device_model || '-'}</span></td>
-                                            <td className="p-4"><span className={`px-3 py-1 rounded-full text-xs font-bold ${t.status === 'Selesai' ? 'bg-green-100 text-green-600' : t.status === 'Gagal' ? 'bg-red-100 text-red-600' : 'bg-yellow-100 text-yellow-600'}`}>{t.status}</span></td>
+                                      {paginatedAdminTrx.map(t => (
+                                         <tr key={t.id} className={selectedTrxIds.includes(t.id) ? 'bg-cyan-50 dark:bg-cyan-900/10' : ''}>
+                                            <td className="p-4">
+                                                <div onClick={() => toggleSelection(t.id, selectedTrxIds, setSelectedTrxIds)} className="cursor-pointer">
+                                                    {selectedTrxIds.includes(t.id) ? <CheckSquare size={16} className="text-cyan-600"/> : <Square size={16} className="text-slate-300"/>}
+                                                </div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="text-[10px] text-slate-500 mb-1">{new Date(t.created_at).toLocaleDateString()} {new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                                                <span className="font-mono text-xs bg-slate-100 dark:bg-white/10 p-1 rounded select-all">{t.id?.toString().slice(0,8)}</span>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="font-bold">{t.product_name}</div>
+                                                <div className="text-xs text-cyan-600 font-bold">Rp {t.price?.toLocaleString()}</div>
+                                            </td>
+                                            <td className="p-4">
+                                                <div className="font-bold text-xs">{t.buyer_name}</div>
+                                                <div className="text-[10px] opacity-60">{t.buyer_email}</div>
+                                                <div className="text-[10px] font-mono mt-1 opacity-50">{t.device_model || '-'}</div>
+                                            </td>
+                                            <td className="p-4"><span className="text-xs font-bold bg-slate-50 dark:bg-white/5 px-2 py-1 rounded-lg">{t.payment_method}</span></td>
+                                            <td className="p-4">
+                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
+                                                    t.status === 'Selesai' ? 'bg-green-100 text-green-600' : 
+                                                    t.status === 'Gagal' ? 'bg-red-100 text-red-600' : 
+                                                    t.status === 'Proses' ? 'bg-blue-100 text-blue-600' : 'bg-yellow-100 text-yellow-600'
+                                                }`}>
+                                                    {t.status}
+                                                </span>
+                                            </td>
                                             <td className="p-4 flex gap-2"><button onClick={() => setSelectedTrxDetail(t)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14}/></button></td>
                                          </tr>
                                       ))}
                                    </tbody>
                                 </table>
                              </div>
+                             
+                             {/* ADMIN PAGINATION */}
+                             {totalAdminTrxPages > 1 && (
+                                <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
+                                    <button onClick={() => setAdminTrxPage(p => Math.max(1, p - 1))} disabled={adminTrxPage === 1} className="text-xs font-bold px-3 py-1 disabled:opacity-50">Prev</button>
+                                    <span className="text-xs">Page {adminTrxPage} of {totalAdminTrxPages}</span>
+                                    <button onClick={() => setAdminTrxPage(p => Math.min(totalAdminTrxPages, p + 1))} disabled={adminTrxPage === totalAdminTrxPages} className="text-xs font-bold px-3 py-1 disabled:opacity-50">Next</button>
+                                </div>
+                             )}
                           </div>
                       </div>
                     )}
@@ -644,16 +802,23 @@ export default function WuregStore() {
                     {activeAdminTab === 'products' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                             <h3 className="text-2xl font-black">Produk</h3>
+                             <div className="flex items-center gap-3">
+                                 <h3 className="text-2xl font-black">Produk</h3>
+                                 {selectedProductIds.length > 0 && <button onClick={() => handleBulkDelete('products', selectedProductIds, setProducts, setSelectedProductIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedProductIds.length})</button>}
+                             </div>
                              <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true }); setIsProductModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                              {products.map(p => (
-                                <div key={p.id} className="bg-white/80 dark:bg-zinc-900/80 p-4 rounded-3xl border border-white/50 dark:border-white/10 flex gap-4 items-center relative overflow-hidden">
+                                <div key={p.id} className={`bg-white/80 dark:bg-zinc-900/80 p-4 rounded-3xl border ${selectedProductIds.includes(p.id) ? 'border-cyan-500 ring-2 ring-cyan-500/20' : 'border-white/50 dark:border-white/10'} flex gap-4 items-center relative overflow-hidden transition-all`}>
+                                   {/* Selection Checkbox */}
+                                   <div className="absolute top-2 left-2 z-30 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleSelection(p.id, selectedProductIds, setSelectedProductIds); }}>
+                                        {selectedProductIds.includes(p.id) ? <CheckSquare className="text-cyan-500 fill-white" size={20}/> : <Square className="text-slate-300" size={20}/>}
+                                   </div>
                                    {!p.is_ready && <div className="absolute inset-0 bg-white/50 dark:bg-black/50 z-10 flex items-center justify-center font-bold text-red-600 rotate-12 border-2 border-red-500 m-6 rounded-xl">HABIS</div>}
                                    <div className="w-16 h-16 bg-slate-100 dark:bg-black/50 rounded-xl overflow-hidden flex-shrink-0">{p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}</div>
                                    <div className="flex-1 min-w-0"><h4 className="font-bold truncate">{p.name}</h4><p className="text-cyan-600 font-bold text-sm">Rp {p.price?.toLocaleString()}</p></div>
-                                   <div className="flex flex-col gap-2 z-20"><button onClick={() => { setEditingProduct(p); setProductForm(p); setIsProductModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-blue-500"><Edit3 size={16}/></button><button onClick={() => handleDeleteProduct(p.id)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-red-500"><Trash2 size={16}/></button></div>
+                                   <div className="flex flex-col gap-2 z-20"><button onClick={() => { setEditingProduct(p); setProductForm(p); setIsProductModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-blue-500"><Edit3 size={16}/></button><button onClick={() => handleBulkDelete('products', [p.id], setProducts, setSelectedProductIds)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-red-500"><Trash2 size={16}/></button></div>
                                 </div>
                              ))}
                           </div>
@@ -663,34 +828,90 @@ export default function WuregStore() {
                     {activeAdminTab === 'payments' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                             <h3 className="text-2xl font-black">Metode Pembayaran</h3>
-                             <button onClick={() => { setPaymentForm({ name: '', va_number: '', image_url: '' }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                             <div className="flex items-center gap-3">
+                                <h3 className="text-2xl font-black">Metode Pembayaran</h3>
+                                {selectedPaymentIds.length > 0 && <button onClick={() => handleBulkDelete('payment_methods', selectedPaymentIds, setPaymentMethods, setSelectedPaymentIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedPaymentIds.length})</button>}
+                             </div>
+                             <button onClick={() => { setEditingPayment(null); setPaymentForm({ name: '', va_number: '', image_url: '', is_active: true }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {paymentMethods.map(pm => (
-                                <div key={pm.id} className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border border-white/50 flex justify-between items-center">
-                                   <div className="flex items-center gap-4"><div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{pm.image_url ? <img src={pm.image_url} alt={pm.name} className="w-full h-full object-contain"/> : <Wallet size={20}/>}</div><div><h4 className="font-bold">{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div></div>
-                                   <button onClick={() => handleDeletePayment(pm.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                <div key={pm.id} className={`bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border ${selectedPaymentIds.includes(pm.id) ? 'border-cyan-500' : 'border-white/50'} flex justify-between items-center relative`}>
+                                   <div className="absolute top-2 left-2 cursor-pointer" onClick={() => toggleSelection(pm.id, selectedPaymentIds, setSelectedPaymentIds)}>
+                                        {selectedPaymentIds.includes(pm.id) ? <CheckSquare className="text-cyan-500 fill-white" size={18}/> : <Square className="text-slate-300" size={18}/>}
+                                   </div>
+                                   <div className="flex items-center gap-4 pl-4">
+                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{pm.image_url ? <img src={pm.image_url} alt={pm.name} className="w-full h-full object-contain"/> : <Wallet size={20}/>}</div>
+                                      <div><h4 className={`font-bold ${!pm.is_active ? 'line-through opacity-50' : ''}`}>{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                      <button onClick={() => toggleActiveStatus('payment_methods', pm.id, pm.is_active, setPaymentMethods)} className={`text-2xl ${pm.is_active ? 'text-green-500' : 'text-slate-300'}`}>{pm.is_active ? <ToggleRight/> : <ToggleLeft/>}</button>
+                                      <button onClick={() => { setEditingPayment(pm); setPaymentForm(pm); setIsPaymentModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={18}/></button>
+                                      <button onClick={() => handleBulkDelete('payment_methods', [pm.id], setPaymentMethods, setSelectedPaymentIds)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                   </div>
                                 </div>
                              ))}
                           </div>
                       </div>
                     )}
 
+                    {activeAdminTab === 'vouchers' && (
+                       <div className="space-y-6 animate-slideIn">
+                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
+                               <div className="flex items-center gap-3">
+                                   <h3 className="text-2xl font-black">Voucher Management</h3>
+                                   {selectedVoucherIds.length > 0 && <button onClick={() => handleBulkDelete('vouchers', selectedVoucherIds, setVouchers, setSelectedVoucherIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedVoucherIds.length})</button>}
+                               </div>
+                               <button onClick={() => { setEditingVoucher(null); setVoucherForm({ code: '', amount: '', is_active: true }); setIsVoucherModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                           </div>
+                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                               {vouchers.map(v => (
+                                   <div key={v.id} className={`bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border ${selectedVoucherIds.includes(v.id) ? 'border-cyan-500' : 'border-white/50'} flex justify-between items-center relative`}>
+                                       <div className="absolute top-2 left-2 cursor-pointer" onClick={() => toggleSelection(v.id, selectedVoucherIds, setSelectedVoucherIds)}>
+                                           {selectedVoucherIds.includes(v.id) ? <CheckSquare className="text-cyan-500 fill-white" size={18}/> : <Square className="text-slate-300" size={18}/>}
+                                       </div>
+                                       <div className="flex items-center gap-4 pl-4">
+                                           <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center"><Ticket size={24}/></div>
+                                           <div>
+                                               <h4 className={`font-bold ${!v.is_active ? 'line-through opacity-50' : ''}`}>{v.code}</h4>
+                                               <p className="text-sm font-bold text-green-500">Disc: Rp {v.amount.toLocaleString()}</p>
+                                           </div>
+                                       </div>
+                                       <div className="flex items-center gap-2">
+                                           <button onClick={() => toggleActiveStatus('vouchers', v.id, v.is_active, setVouchers)} className={`text-2xl ${v.is_active ? 'text-green-500' : 'text-slate-300'}`}>{v.is_active ? <ToggleRight/> : <ToggleLeft/>}</button>
+                                           <button onClick={() => { setEditingVoucher(v); setVoucherForm(v); setIsVoucherModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={18}/></button>
+                                           <button onClick={() => handleBulkDelete('vouchers', [v.id], setVouchers, setSelectedVoucherIds)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                       </div>
+                                   </div>
+                               ))}
+                           </div>
+                       </div>
+                    )}
+
                     {activeAdminTab === 'contacts' && (
                       <div className="space-y-6 animate-slideIn">
                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                             <h3 className="text-2xl font-black">Kontak Admin</h3>
-                             <button onClick={() => { setContactForm({ platform_name: '', url: '', image_url: '' }); setIsContactModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
+                             <div className="flex items-center gap-3">
+                                 <h3 className="text-2xl font-black">Kontak Admin</h3>
+                                 {selectedContactIds.length > 0 && <button onClick={() => handleBulkDelete('contact_methods', selectedContactIds, setContactMethods, setSelectedContactIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedContactIds.length})</button>}
+                             </div>
+                             <button onClick={() => { setEditingContact(null); setContactForm({ platform_name: '', url: '', image_url: '', is_active: true }); setIsContactModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              {contactMethods.map(cm => (
-                                <div key={cm.id} className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border border-white/50 flex justify-between items-center">
-                                   <div className="flex items-center gap-4">
-                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{cm.image_url ? <img src={cm.image_url} className="w-full h-full object-contain"/> : <Mail size={20}/>}</div>
-                                      <div><h4 className="font-bold">{cm.platform_name}</h4><p className="text-xs text-slate-500 truncate max-w-[200px]">{cm.url}</p></div>
+                                <div key={cm.id} className={`bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border ${selectedContactIds.includes(cm.id) ? 'border-cyan-500' : 'border-white/50'} flex justify-between items-center relative`}>
+                                   <div className="absolute top-2 left-2 cursor-pointer" onClick={() => toggleSelection(cm.id, selectedContactIds, setSelectedContactIds)}>
+                                        {selectedContactIds.includes(cm.id) ? <CheckSquare className="text-cyan-500 fill-white" size={18}/> : <Square className="text-slate-300" size={18}/>}
                                    </div>
-                                   <button onClick={() => handleDeleteContact(cm.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                   <div className="flex items-center gap-4 pl-4">
+                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{cm.image_url ? <img src={cm.image_url} className="w-full h-full object-contain"/> : <Mail size={20}/>}</div>
+                                      <div><h4 className={`font-bold ${!cm.is_active ? 'line-through opacity-50' : ''}`}>{cm.platform_name}</h4><p className="text-xs text-slate-500 truncate max-w-[200px]">{cm.url}</p></div>
+                                   </div>
+                                   <div className="flex items-center gap-2">
+                                      <button onClick={() => toggleActiveStatus('contact_methods', cm.id, cm.is_active, setContactMethods)} className={`text-2xl ${cm.is_active ? 'text-green-500' : 'text-slate-300'}`}>{cm.is_active ? <ToggleRight/> : <ToggleLeft/>}</button>
+                                      <button onClick={() => { setEditingContact(cm); setContactForm(cm); setIsContactModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={18}/></button>
+                                      <button onClick={() => handleBulkDelete('contact_methods', [cm.id], setContactMethods, setSelectedContactIds)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
+                                   </div>
                                 </div>
                              ))}
                           </div>
@@ -709,12 +930,14 @@ export default function WuregStore() {
         {selectedTrxDetail && (
            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setSelectedTrxDetail(null)}>
               <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-                 {/* Area yang akan di-screenshot oleh html2canvas */}
                  <div ref={invoiceRef} className="bg-white dark:bg-zinc-900 p-4">
                      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
                      <div className="flex justify-between items-center mb-4 mt-2">
                         <h3 className="text-xl font-black">INVOICE</h3>
-                        <span className="font-mono text-xs bg-slate-100 p-1 rounded">{selectedTrxDetail.id.slice(0,8)}</span>
+                        <div className="flex items-center gap-2">
+                            <span className="font-mono text-xs bg-slate-100 p-1 rounded">{selectedTrxDetail.id.slice(0,8)}</span>
+                            <button onClick={() => {navigator.clipboard.writeText(selectedTrxDetail.id); showToast("ID Disalin", "success")}} className="p-1 hover:bg-slate-100 rounded"><Copy size={12}/></button>
+                        </div>
                      </div>
                      <div className="space-y-4 bg-slate-50 dark:bg-black/20 p-4 rounded-2xl mb-6">
                         <div className="flex justify-between"><span className="text-sm text-slate-500">Tanggal</span><span className="font-bold text-sm">{new Date(selectedTrxDetail.created_at).toLocaleString()}</span></div>
@@ -722,19 +945,23 @@ export default function WuregStore() {
                         <div className="flex justify-between"><span className="text-sm text-slate-500">Device/ID</span><span className="font-bold text-sm">{selectedTrxDetail.device_model}</span></div>
                         <hr className="border-dashed border-slate-300 dark:border-white/10"/>
                         <div className="flex justify-between"><span className="text-sm text-slate-500">Produk</span><span className="font-bold text-sm">{selectedTrxDetail.product_name}</span></div>
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Metode</span><span className="font-bold text-sm">{selectedTrxDetail.payment_method}</span></div>
                         <div className="flex justify-between"><span className="text-sm text-slate-500">Total Bayar</span><span className="font-bold text-sm text-cyan-600">Rp {selectedTrxDetail.price?.toLocaleString()}</span></div>
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Status</span><span className={`font-bold text-sm uppercase ${selectedTrxDetail.status === 'Selesai' ? 'text-green-600' : 'text-yellow-600'}`}>{selectedTrxDetail.status}</span></div>
+                        <div className="flex justify-between"><span className="text-sm text-slate-500">Status</span><span className={`font-bold text-sm uppercase ${selectedTrxDetail.status === 'Selesai' ? 'text-green-600' : selectedTrxDetail.status === 'Proses' ? 'text-blue-600' : selectedTrxDetail.status === 'Gagal' ? 'text-red-600' : 'text-yellow-600'}`}>{selectedTrxDetail.status}</span></div>
                      </div>
                      <div className="text-center text-xs text-slate-400">Terima kasih telah berbelanja di WuregStore</div>
                  </div>
 
-                 {/* Tombol Aksi (Tidak ikut di-screenshot) */}
                  <div className="flex flex-col gap-2 mt-2">
                      <button onClick={downloadInvoice} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold flex justify-center items-center gap-2"><Download size={18}/> Download JPG</button>
-                     <div className="flex gap-2">
-                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, selectedTrxDetail.status)} className={`flex-1 py-3 rounded-xl font-bold text-white transition-all ${selectedTrxDetail.status === 'Selesai' ? 'bg-green-600' : selectedTrxDetail.status === 'Gagal' ? 'bg-red-600' : 'bg-yellow-500'}`}>Ubah Status</button>
-                        <button onClick={() => setSelectedTrxDetail(null)} className="px-4 py-3 bg-slate-100 dark:bg-white/10 rounded-xl font-bold">Tutup</button>
+                     <p className="text-center text-xs font-bold text-slate-400 mt-2">Ubah Status:</p>
+                     <div className="grid grid-cols-4 gap-2">
+                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Pending')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Pending' ? 'bg-yellow-500 text-white' : 'bg-slate-100 hover:bg-yellow-100 text-yellow-600'}`}>PENDING</button>
+                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Proses')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Proses' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-blue-100 text-blue-600'}`}>PROSES</button>
+                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Selesai')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Selesai' ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-green-100 text-green-600'}`}>SELESAI</button>
+                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Gagal')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Gagal' ? 'bg-red-600 text-white' : 'bg-slate-100 hover:bg-red-100 text-red-600'}`}>GAGAL</button>
                      </div>
+                     <button onClick={() => setSelectedTrxDetail(null)} className="mt-2 w-full py-3 bg-slate-100 dark:bg-white/10 rounded-xl font-bold">Tutup</button>
                  </div>
               </div>
            </div>
@@ -742,11 +969,27 @@ export default function WuregStore() {
 
         {isProductModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingProduct ? 'Edit Produk' : 'Tambah Produk'}</h3><div className="space-y-4"><input type="text" placeholder="Nama Produk" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})}/><input type="number" placeholder="Harga" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})}/><div className="flex gap-2"><select className="flex-1 bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})}><option value="Game">Game</option><option value="Akun">Akun</option><option value="TopUp">TopUp</option><option value="Software">Software</option></select><input type="text" placeholder="Label (Optional)" className="flex-1 bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.label} onChange={e => setProductForm({...productForm, label: e.target.value})}/></div><div className="flex items-center justify-between bg-slate-100 dark:bg-black/50 p-3 rounded-xl"><span className="font-bold text-sm">Status Stok: {productForm.is_ready ? 'Ready' : 'Habis'}</span><button onClick={()=>setProductForm({...productForm, is_ready: !productForm.is_ready})} className={`p-1 rounded-full w-12 flex transition-all ${productForm.is_ready ? 'bg-green-500 justify-end' : 'bg-red-500 justify-start'}`}><div className="w-5 h-5 bg-white rounded-full shadow-sm"></div></button></div><input type="text" placeholder="Image URL (Optional)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.image_url} onChange={e => setProductForm({...productForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsProductModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveProduct} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
 
-        {isPaymentModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">Tambah Payment</h3><div className="space-y-4"><input type="text" placeholder="Nama Bank/E-Wallet" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.name} onChange={e => setPaymentForm({...paymentForm, name: e.target.value})}/><input type="text" placeholder="No. Rekening / VA" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.va_number} onChange={e => setPaymentForm({...paymentForm, va_number: e.target.value})}/><input type="text" placeholder="Logo Image URL" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.image_url} onChange={e => setPaymentForm({...paymentForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSavePayment} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
+        {isPaymentModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingPayment ? 'Edit Payment' : 'Tambah Payment'}</h3><div className="space-y-4"><input type="text" placeholder="Nama Bank/E-Wallet" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.name} onChange={e => setPaymentForm({...paymentForm, name: e.target.value})}/><input type="text" placeholder="No. Rekening / VA" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.va_number} onChange={e => setPaymentForm({...paymentForm, va_number: e.target.value})}/><input type="text" placeholder="Logo Image URL" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.image_url} onChange={e => setPaymentForm({...paymentForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSavePayment} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
 
-        {isContactModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">Tambah Kontak</h3><div className="space-y-4"><input type="text" placeholder="Nama Platform (WA, IG)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.platform_name} onChange={e => setContactForm({...contactForm, platform_name: e.target.value})}/><input type="text" placeholder="URL Link (https://...)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.url} onChange={e => setContactForm({...contactForm, url: e.target.value})}/><input type="text" placeholder="Icon URL (Optional)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.image_url} onChange={e => setContactForm({...contactForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsContactModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveContact} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
+        {isVoucherModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingVoucher ? 'Edit Voucher' : 'Tambah Voucher'}</h3><div className="space-y-4"><input type="text" placeholder="Kode Voucher (ex: DISKON10)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none uppercase" value={voucherForm.code} onChange={e => setVoucherForm({...voucherForm, code: e.target.value.toUpperCase()})}/><input type="number" placeholder="Jumlah Potongan (Rp)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={voucherForm.amount} onChange={e => setVoucherForm({...voucherForm, amount: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsVoucherModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveVoucher} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
 
-        {isContactOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}><div className="bg-white p-6 rounded-3xl max-w-sm w-full"><h3 className="font-bold text-xl mb-4 text-center">Hubungi Admin</h3><div className="space-y-3">{contactMethods.map(c=><a key={c.id} href={c.url} target="_blank" className="flex items-center gap-3 p-4 bg-slate-100 rounded-xl font-bold transition hover:bg-slate-200">{c.image_url ? <img src={c.image_url} className="w-6 h-6"/> : <Mail size={20}/>} {c.platform_name}</a>)}</div></div></div>)}
+        {isContactModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingContact ? 'Edit Kontak' : 'Tambah Kontak'}</h3><div className="space-y-4"><input type="text" placeholder="Nama Platform (WA, IG)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.platform_name} onChange={e => setContactForm({...contactForm, platform_name: e.target.value})}/><input type="text" placeholder="URL Link (https://...)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.url} onChange={e => setContactForm({...contactForm, url: e.target.value})}/><input type="text" placeholder="Icon URL (Optional)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.image_url} onChange={e => setContactForm({...contactForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsContactModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveContact} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
+
+        {isContactOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}>
+                <div className="bg-white dark:bg-zinc-900 text-slate-900 dark:text-slate-100 p-6 rounded-3xl max-w-sm w-full border border-white/10 shadow-2xl">
+                    <h3 className="font-bold text-xl mb-4 text-center">Hubungi Admin</h3>
+                    <div className="space-y-3">
+                        {contactMethods.filter(c => c.is_active).map(c => (
+                            <a key={c.id} href={c.url} target="_blank" className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-white/5 rounded-xl font-bold transition hover:bg-slate-200 dark:hover:bg-white/10">
+                                {c.image_url ? <img src={c.image_url} className="w-6 h-6"/> : <Mail size={20}/>} 
+                                {c.platform_name}
+                            </a>
+                        ))}
+                    </div>
+                </div>
+            </div>
+        )}
         
         {/* --- MODAL CHECKOUT (UPDATED) --- */}
         {selectedProduct && (
@@ -758,8 +1001,8 @@ export default function WuregStore() {
                </div>
                <div className="p-8 overflow-y-auto custom-scrollbar">
                   <div className="flex items-center gap-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl mb-6 border border-slate-100 dark:border-white/5">
-                     <div className="h-12 w-12 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center text-cyan-600 font-black">{selectedProduct.name.slice(0,1)}</div>
-                     <div><h4 className="font-bold">{selectedProduct.name}</h4><p className="text-sm text-slate-500">{selectedProduct.category} • Rp {selectedProduct.price.toLocaleString()}</p></div>
+                      <div className="h-12 w-12 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center text-cyan-600 font-black">{selectedProduct.name.slice(0,1)}</div>
+                      <div><h4 className="font-bold">{selectedProduct.name}</h4><p className="text-sm text-slate-500">{selectedProduct.category} • Rp {selectedProduct.price.toLocaleString()}</p></div>
                   </div>
                   
                   {checkoutStep === 1 ? (
@@ -798,7 +1041,7 @@ export default function WuregStore() {
                        
                        <p className="text-xs font-bold text-slate-500 ml-1">PILIH METODE</p>
                        <div className="space-y-3">
-                          {paymentMethods.length === 0 ? <p className="text-center text-sm text-slate-400 py-4">Belum ada metode pembayaran.</p> : paymentMethods.map(m => (
+                          {paymentMethods.filter(p=>p.is_active).length === 0 ? <p className="text-center text-sm text-slate-400 py-4">Belum ada metode pembayaran aktif.</p> : paymentMethods.filter(p=>p.is_active).map(m => (
                              <div key={m.id} onClick={() => setSelectedPayment(m)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedPayment?.id === m.id ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 ring-1 ring-cyan-500' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
                                 <div className="flex justify-between items-center">
                                    <div className="flex items-center gap-3">
