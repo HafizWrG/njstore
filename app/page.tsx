@@ -1,62 +1,85 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import html2canvas from 'html2canvas'; 
-import { 
-  Menu, X, Search, ShoppingCart, LogOut, 
-  Smartphone, Monitor, CreditCard, CheckCircle, 
-  ChevronRight, ShieldCheck, Zap,
-  Loader2, AlertCircle,
-  Download, ExternalLink, Mail, Copy, AlignJustify,
-  ArrowUpDown, Plus, Trash2, Edit3, Tag, HelpCircle, Eye, Wallet, 
-  ChevronLeft, Gamepad2, Ticket, AlertTriangle, Star,
-  RefreshCw, CheckSquare, Square, ToggleLeft, ToggleRight, MoreVertical, Filter, 
-  Calendar, FileSpreadsheet, Clock
+import React, { useState, useEffect, useRef } from 'react';
+import html2canvas from 'html2canvas';
+import {
+  Menu, X, Search, ShoppingCart, LogOut,
+  Smartphone, CreditCard, CheckCircle,
+  Loader2, AlertCircle, Download, Mail, Copy, AlignJustify,
+  Plus, Trash2, Edit3, Eye, Wallet,
+  Gamepad2, Lock, User, Globe, Power, Monitor, FileSpreadsheet, MessageCircle,
+  Truck, Receipt, RefreshCw, ChevronRight, Zap, Instagram, Facebook, Twitter
 } from 'lucide-react';
 
-// --- 1. SETUP ENV & SUPABASE HELPER ---
+// --- 1. SETUP SUPABASE CLIENT ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
+const ADMIN_PHONE_FALLBACK = "6281528483575";
+const STORE_LOGO = "https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383";
 
 const createSupabaseClient = (baseUrl: string, key: string) => {
   if (!baseUrl || !key) return null;
-  const headers = {
-    'apikey': key,
-    'Authorization': `Bearer ${key}`,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation'
+  
+  const getHeaders = () => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('sb_access_token') : null;
+    return {
+      'apikey': key,
+      'Authorization': token ? `Bearer ${token}` : `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    };
   };
 
   return {
+    auth: {
+      signInWithPassword: async ({ email, password }: any) => {
+        try {
+          const res = await fetch(`${baseUrl}/auth/v1/token?grant_type=password`, {
+            method: 'POST',
+            headers: { 'apikey': key, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          });
+          const data = await res.json();
+          if (!res.ok) return { data: null, error: { message: data.error_description || 'Login gagal' } };
+          if(data.access_token) localStorage.setItem('sb_access_token', data.access_token);
+          return { data, error: null };
+        } catch (err: any) { return { data: null, error: { message: err.message } }; }
+      },
+      signOut: async () => {
+        localStorage.removeItem('sb_access_token');
+        return { error: null };
+      },
+      getUser: async () => {
+         const token = localStorage.getItem('sb_access_token');
+         if(!token) return { data: null };
+         try {
+             const res = await fetch(`${baseUrl}/auth/v1/user`, {
+                 headers: { 'apikey': key, 'Authorization': `Bearer ${token}` }
+             });
+             if(!res.ok) throw new Error('Expired');
+             return { data: await res.json() };
+         } catch { return { data: null }; }
+      }
+    },
     from: (table: string) => {
       const url = new URL(`${baseUrl}/rest/v1/${table}`);
       let method = 'GET';
       let body: any = null;
-      let isSingle = false;
-
       const builder = {
         select: (columns = '*') => { url.searchParams.set('select', columns); return builder; },
         order: (column: string, { ascending = true } = {}) => { url.searchParams.set('order', `${column}.${ascending ? 'asc' : 'desc'}`); return builder; },
         eq: (column: string, value: any) => { url.searchParams.set(column, `eq.${value}`); return builder; },
-        gte: (column: string, value: any) => { url.searchParams.set(column, `gte.${value}`); return builder; },
-        lte: (column: string, value: any) => { url.searchParams.set(column, `lte.${value}`); return builder; }, // Added LTE for date range
         in: (column: string, values: any[]) => { url.searchParams.set(column, `in.(${values.join(',')})`); return builder; },
-        single: () => { isSingle = true; return builder; },
         insert: (data: any) => { method = 'POST'; body = JSON.stringify(data); return builder; },
-        update: (data: any) => { method = 'PATCH'; body = JSON.stringify(data); return builder; }, 
+        update: (data: any) => { method = 'PATCH'; body = JSON.stringify(data); return builder; },
         delete: () => { method = 'DELETE'; return builder; },
-        then: (resolve: Function, reject: Function) => {
-          const execute = async () => {
-            try {
-              const res = await fetch(url.toString(), { method, headers, body });
-              if (!res.ok) { const text = await res.text(); return { data: null, error: { message: text } }; }
-              if (res.status === 204) return { data: null, error: null };
-              const result = await res.json();
-              if (isSingle && Array.isArray(result)) return { data: result.length > 0 ? result[0] : null, error: null };
-              return { data: result, error: null };
-            } catch (err: any) { return { data: null, error: { message: err.message } }; }
-          };
-          return execute().then((res: any) => resolve(res)).catch((err: any) => reject(err));
+        then: async (resolve: Function, reject: Function) => {
+          try {
+            const res = await fetch(url.toString(), { method, headers: getHeaders(), body });
+            if (!res.ok) return resolve({ data: null, error: { message: await res.text() } });
+            if (method === 'DELETE' || res.status === 204) return resolve({ data: [], error: null });
+            return resolve({ data: await res.json(), error: null });
+          } catch (err: any) { return reject({ message: err.message }); }
         }
       };
       return builder;
@@ -65,1018 +88,728 @@ const createSupabaseClient = (baseUrl: string, key: string) => {
 };
 
 const supabase: any = createSupabaseClient(supabaseUrl, supabaseKey);
-const ADMIN_PHONE_FALLBACK = "6281528483575"; 
 
-// --- FAQ DATA ---
-const FAQ_DATA = [
-  { q: "Bagaimana cara order?", a: "Pilih produk -> Isi Data -> Pilih Pembayaran -> Konfirmasi -> Kirim ke WA Admin." },
-  { q: "Apakah proses instan?", a: "Ya, proses 1-10 menit setelah admin menerima bukti transfer." },
-  { q: "Apa itu Label Produk?", a: "Label menunjukkan status produk seperti 'Promo', 'Best Seller', atau 'New'." },
-  { q: "Jam operasional?", a: "09:00 - 22:00 WIB. Di luar jam itu slow respon." }
-];
+// --- 2. UI COMPONENTS ---
 
-// --- TOAST COMPONENT ---
-const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) => (
-  <div className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl animate-slideIn transition-all backdrop-blur-md border ${
-    type === 'success' ? 'bg-green-500/80 border-green-400 text-white' : 'bg-red-500/80 border-red-400 text-white'
-  }`}>
-    {type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-    <span className="font-medium text-sm">{message}</span>
-    <button onClick={onClose} className="ml-2 hover:bg-white/20 rounded-full p-1 transition-colors"><X size={14}/></button>
+const Background = () => (
+  <div className="fixed inset-0 -z-50 bg-slate-50">
+    {/* Static gradient mesh - No Animation for Performance */}
+    <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-100 rounded-full blur-[100px] opacity-60"></div>
+    <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-100 rounded-full blur-[100px] opacity-60"></div>
   </div>
 );
 
-// --- MAIN COMPONENT ---
-export default function WuregStore() {
-  const [activePage, setActivePage] = useState('home'); 
-  const [isContactOpen, setIsContactOpen] = useState(false);
-  const [isFaqOpen, setIsFaqOpen] = useState(false); 
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
+const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 'error', onClose: () => void }) => (
+  <div className={`fixed top-24 right-4 z-[100] flex items-center gap-3 px-5 py-3 rounded-xl shadow-xl border bg-white ${
+    type === 'success' ? 'border-green-500 text-green-700' : 'border-red-500 text-red-700'
+  }`}>
+    {type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+    <span className="font-bold text-sm">{message}</span>
+    <button onClick={onClose}><X size={16}/></button>
+  </div>
+);
 
-  // Data State
+// --- 3. MAIN APP ---
+export default function WuregStore() {
+  const [activePage, setActivePage] = useState('home');
+  const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isContactModalOpen, setIsContactModalOpen] = useState(false);
+
+  // Data
   const [products, setProducts] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
-  const [contactMethods, setContactMethods] = useState<any[]>([]);
   const [vouchers, setVouchers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [contactMethods, setContactMethods] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Pagination State
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 16;
-  
-  // Admin Transaction Pagination
-  const [adminTrxPage, setAdminTrxPage] = useState(1);
-  const ADMIN_TRX_PER_PAGE = 10;
-
-  // Staff State
-  const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
-  const [staffPinInput, setStaffPinInput] = useState('');
-  const [isStaffLoginLoading, setIsStaffLoginLoading] = useState(false); 
-  const [activeAdminTab, setActiveAdminTab] = useState<'dashboard' | 'transactions' | 'products' | 'payments' | 'contacts' | 'vouchers'>('dashboard');
-  
-  // Staff: Selection & Bulk Actions
-  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
-  const [selectedPaymentIds, setSelectedPaymentIds] = useState<string[]>([]);
-  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
-  const [selectedVoucherIds, setSelectedVoucherIds] = useState<string[]>([]);
-  const [selectedTrxIds, setSelectedTrxIds] = useState<string[]>([]);
-
-  // Staff: Transactions & Detail & Filters
-  const [dateRange, setDateRange] = useState<{start: string, end: string}>({ start: '', end: '' });
-  const [statusFilter, setStatusFilter] = useState<'all' | 'Pending' | 'Proses' | 'Selesai' | 'Gagal'>('all');
-  const [adminSearchTrx, setAdminSearchTrx] = useState('');
-  const [selectedTrxDetail, setSelectedTrxDetail] = useState<any>(null);
-  const invoiceRef = useRef<HTMLDivElement>(null);
-
-  // Staff: CRUD Modals
-  const [isProductModalOpen, setIsProductModalOpen] = useState(false);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [isContactModalOpen, setIsContactModalOpen] = useState(false); 
-  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
-  
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [editingPayment, setEditingPayment] = useState<any>(null);
-  const [editingContact, setEditingContact] = useState<any>(null);
-  const [editingVoucher, setEditingVoucher] = useState<any>(null);
-  
-  // Forms
-  const [productForm, setProductForm] = useState({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true });
-  const [paymentForm, setPaymentForm] = useState({ name: '', va_number: '', image_url: '', is_active: true });
-  const [contactForm, setContactForm] = useState({ platform_name: '', url: '', image_url: '', is_active: true });
-  const [voucherForm, setVoucherForm] = useState({ code: '', amount: '', is_active: true });
-
-  // Store & Checkout State
+  // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [sortBy, setSortBy] = useState<'default' | 'price_low' | 'price_high' | 'name'>('default');
-  const [selectedProduct, setSelectedProduct] = useState<any>(null); 
-  const [checkoutStep, setCheckoutStep] = useState(1); 
-  const [selectedPayment, setSelectedPayment] = useState<any>(null); 
   
-  // Buyer Forms
+  // Tracking
+  const [trackId, setTrackId] = useState('');
+  const [trackResult, setTrackResult] = useState<any>(null);
+  const [isTrackLoading, setIsTrackLoading] = useState(false);
+
+  // Checkout
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [checkoutStep, setCheckoutStep] = useState(1);
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
   const [topUpForm, setTopUpForm] = useState({ userId: '', zoneId: '' });
-  const [accNick, setAccNick] = useState('');
-  const [isCheckingNick, setIsCheckingNick] = useState(false);
-
-  // Voucher State (User Side)
+  const [selectedPayment, setSelectedPayment] = useState<any>(null);
+  const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
   const [voucherCode, setVoucherCode] = useState('');
-  const [appliedVoucher, setAppliedVoucher] = useState<{code: string, amount: number} | null>(null);
-  const [voucherLoading, setVoucherLoading] = useState(false);
-
-  const [formErrors, setFormErrors] = useState({ name: '', email: '', device_model: '', game_id: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  
+  // Staff
+  const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [adminTab, setAdminTab] = useState<'dash' | 'trx' | 'prod' | 'setting'>('dash');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]); // For Bulk Action
+  
+  // CRUD
+  const [modalType, setModalType] = useState<'product' | 'payment' | 'voucher' | 'contact' | 'invoice' | null>(null);
+  const [editingItem, setEditingItem] = useState<any>(null); 
+  const [detailTrx, setDetailTrx] = useState<any>(null);
+  const invoiceRef = useRef<HTMLDivElement>(null);
+  const [formData, setFormData] = useState<any>({});
 
-  const showToast = useCallback((msg: string, type: 'success' | 'error') => {
+  // --- HELPER ---
+  const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3000);
-  }, []);
-
-  useEffect(() => {
-    setMounted(true);
-    refreshAllData();
-    const savedLogin = localStorage.getItem('isStaffLoggedIn');
-    if (savedLogin === 'true') setIsStaffLoggedIn(true);
-  }, []);
-
-  useEffect(() => {
-    if (isStaffLoggedIn) {
-      fetchFilteredTransactions();
-      fetchVouchers();
-    }
-  }, [isStaffLoggedIn, dateRange]); // Refetch on date range change
-
-  // --- ACTIONS (FETCH & REFRESH) ---
-  const refreshAllData = async () => {
-    setIsRefreshing(true);
-    await Promise.all([
-      fetchProducts(),
-      fetchPaymentMethods(),
-      fetchContactMethods()
-    ]);
-    if(isStaffLoggedIn) {
-        await fetchFilteredTransactions();
-        await fetchVouchers();
-    }
-    setIsRefreshing(false);
   };
 
-  const fetchProducts = async () => {
+  const fetchPublicData = async () => {
     setIsLoading(true);
-    try {
-      if (!supabase) throw new Error("Supabase missing");
-      const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-      setProducts(data || []);
-    } catch (error) { showToast("Gagal memuat data", "error"); } 
-    finally { setIsLoading(false); }
-  };
-
-  const fetchPaymentMethods = async () => {
-    const { data } = await supabase.from('payment_methods').select('*').order('created_at', { ascending: true });
-    setPaymentMethods(data || []);
-  };
-
-  const fetchContactMethods = async () => {
-    const { data } = await supabase.from('contact_methods').select('*').order('created_at', { ascending: true });
-    setContactMethods(data || []);
-  };
-
-  const fetchVouchers = async () => {
-    const { data } = await supabase.from('vouchers').select('*').order('created_at', { ascending: false });
-    setVouchers(data || []);
-  };
-
-  const fetchFilteredTransactions = async () => {
-    if (!supabase) return;
-    try {
-      let query = supabase.from('transactions').select('*').order('created_at', { ascending: false });
-      
-      // Apply Date Filter if set
-      if (dateRange.start) {
-         const startDate = new Date(dateRange.start);
-         query = query.gte('created_at', startDate.toISOString());
-      }
-      if (dateRange.end) {
-         const endDate = new Date(dateRange.end);
-         endDate.setHours(23, 59, 59, 999); // End of day
-         query = query.lte('created_at', endDate.toISOString());
-      }
-
-      const { data } = await query;
-      setTransactions(data || []);
-    } catch (err) { showToast("Gagal memuat laporan", "error"); }
-  };
-
-  // --- ACTIONS (BULK ACTIONS) ---
-  const handleBulkDelete = async (table: string, ids: string[], setter: React.Dispatch<React.SetStateAction<any[]>>, selectionSetter: React.Dispatch<React.SetStateAction<string[]>>) => {
-    if(ids.length === 0) return;
-    if(!confirm(`Hapus ${ids.length} item yang dipilih?`)) return;
-    
-    try {
-        await supabase.from(table).delete().in('id', ids);
-        setter(prev => prev.filter(item => !ids.includes(item.id)));
-        selectionSetter([]); 
-        showToast("Bulk Delete Sukses", "success");
-    } catch (err) {
-        showToast("Gagal menghapus", "error");
-    }
-  };
-
-  const toggleSelection = (id: string, currentList: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) => {
-    if(currentList.includes(id)) setter(currentList.filter(x => x !== id));
-    else setter([...currentList, id]);
-  };
-
-  const handleSelectAll = (items: any[], currentList: string[], setter: React.Dispatch<React.SetStateAction<string[]>>) => {
-    if (currentList.length === items.length) setter([]);
-    else setter(items.map(item => item.id));
-  };
-
-  const toggleActiveStatus = async (table: string, id: string, currentStatus: boolean, localSetter: React.Dispatch<React.SetStateAction<any[]>>) => {
-    try {
-        await supabase.from(table).update({ is_active: !currentStatus }).eq('id', id);
-        localSetter(prev => prev.map(item => item.id === id ? { ...item, is_active: !currentStatus } : item));
-        showToast("Status Diupdate", "success");
-    } catch (err) { showToast("Gagal update status", "error"); }
-  };
-
-  // --- ACTIONS (BUYER SIDE) ---
-  const handleApplyVoucher = async () => {
-    if(!voucherCode) return showToast("Masukkan kode voucher", "error");
-    setVoucherLoading(true);
-    try {
-        const { data, error } = await supabase.from('vouchers').select('*').eq('code', voucherCode).eq('is_active', true).single();
-        if (error || !data) {
-            showToast("Kode voucher tidak valid / habis", "error");
-            setAppliedVoucher(null);
-        } else {
-            setAppliedVoucher({ code: data.code, amount: data.amount });
-            showToast(`Voucher Applied! Hemat Rp ${data.amount.toLocaleString()}`, "success");
-        }
-    } catch(err) { showToast("Gagal cek voucher", "error"); }
-    finally { setVoucherLoading(false); }
-  };
-
-  const checkGameNick = async () => {
-    if(!topUpForm.userId) return showToast("Masukkan User ID", "error");
-    setIsCheckingNick(true);
-    setAccNick('');
-    setTimeout(() => {
-        setAccNick('WuregPlayer_test'); 
-        setIsCheckingNick(false);
-    }, 1500);
-  };
-
-  const downloadInvoice = async () => {
-    if (!invoiceRef.current) return;
-    try {
-        const canvas = await html2canvas(invoiceRef.current, { scale: 2, useCORS: true });
-        const image = canvas.toDataURL("image/jpeg", 1.0);
-        const link = document.createElement("a");
-        link.href = image;
-        link.download = `Invoice-${selectedTrxDetail?.id || 'TRX'}.jpg`;
-        link.click();
-        showToast("Invoice berhasil didownload", "success");
-    } catch (err) { showToast("Gagal download invoice", "error"); }
-  };
-
-  const exportToCSV = () => {
-    if (filteredAdminTrx.length === 0) return showToast("Tidak ada data untuk diexport", "error");
-    
-    const headers = ["ID", "Tanggal", "Buyer Name", "Buyer Email", "Produk", "Harga", "Metode Pembayaran", "Device/ID", "Status"];
-    const rows = filteredAdminTrx.map(t => [
-        t.id,
-        new Date(t.created_at).toLocaleString(),
-        `"${t.buyer_name}"`,
-        t.buyer_email,
-        `"${t.product_name}"`,
-        t.price,
-        t.payment_method,
-        `"${t.device_model}"`,
-        t.status
+    const [p, pm, cm] = await Promise.all([
+      supabase.from('products').select('*').order('created_at', {ascending: false}),
+      supabase.from('payment_methods').select('*').eq('is_active', true).order('created_at', {ascending: true}),
+      supabase.from('contact_methods').select('*').eq('is_active', true)
     ]);
-
-    let csvContent = "data:text/csv;charset=utf-8," 
-        + headers.join(",") + "\n" 
-        + rows.map(e => e.join(",")).join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `Report_Trx_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast("Report berhasil didownload", "success");
+    if(p.data) setProducts(p.data);
+    if(pm.data) setPaymentMethods(pm.data);
+    if(cm.data) setContactMethods(cm.data);
+    setIsLoading(false);
   };
 
-  // --- ACTIONS (STAFF CRUD) ---
-  const handleSaveProduct = async () => {
-     if(!productForm.name || !productForm.price) return showToast("Wajib diisi", "error");
-     const payload = { ...productForm, price: parseInt(productForm.price.toString()) };
-     try {
-        if (editingProduct) await supabase.from('products').update(payload).eq('id', editingProduct.id);
-        else await supabase.from('products').insert([payload]);
-        setIsProductModalOpen(false);
-        fetchProducts();
-        showToast("Sukses", "success");
-     } catch (err) { showToast("Gagal", "error"); }
+  const refreshAdminData = async () => {
+    if (!isStaffLoggedIn) return;
+    const [t, v, pmAll, cmAll] = await Promise.all([
+      supabase.from('transactions').select('*').order('created_at', {ascending: false}),
+      supabase.from('vouchers').select('*').order('created_at', {ascending: false}),
+      supabase.from('payment_methods').select('*').order('created_at', {ascending: true}),
+      supabase.from('contact_methods').select('*').order('created_at', {ascending: true})
+    ]);
+    if(t.data) setTransactions(t.data);
+    if(v.data) setVouchers(v.data);
+    if(pmAll.data) setPaymentMethods(pmAll.data); 
+    if(cmAll.data) setContactMethods(cmAll.data);
   };
 
-  const handleSavePayment = async () => {
-    if(!paymentForm.name) return showToast("Data kurang", "error");
+  // --- EFFECTS ---
+  useEffect(() => {
+    fetchPublicData();
+    const checkUser = async () => {
+        const {data} = await supabase.auth.getUser();
+        if(data) setIsStaffLoggedIn(true);
+    };
+    checkUser();
+  }, []);
+
+  useEffect(() => {
+    if(isStaffLoggedIn) refreshAdminData();
+  }, [isStaffLoggedIn]);
+
+  // --- HANDLERS ---
+  const handleTrackOrder = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if(!trackId) return showToast("Masukkan ID Transaksi", "error");
+      setIsTrackLoading(true);
+      const { data } = await supabase.from('transactions').select('*').eq('id', trackId).in('id', [trackId]);
+      if(data && data.length > 0) {
+          setTrackResult(data[0]);
+          showToast("Pesanan Ditemukan", "success");
+      } else {
+          setTrackResult(null);
+          showToast("ID Transaksi Tidak Ditemukan", "error");
+      }
+      setIsTrackLoading(false);
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setIsAuthLoading(true);
+      const { error } = await supabase.auth.signInWithPassword(loginForm);
+      if(error) showToast("Login Gagal: " + error.message, 'error');
+      else { 
+          setIsStaffLoggedIn(true); 
+          showToast("Selamat Datang Staff!", "success"); 
+          setLoginForm({email:'', password:''}); 
+      }
+      setIsAuthLoading(false);
+  };
+
+  const handleSaveItem = async (table: string, payload: any) => {
     try {
-        if(editingPayment) await supabase.from('payment_methods').update(paymentForm).eq('id', editingPayment.id);
-        else await supabase.from('payment_methods').insert([paymentForm]);
-        setIsPaymentModalOpen(false);
-        fetchPaymentMethods();
-        showToast("Payment Sukses Disimpan", "success");
-    } catch (err) { showToast("Gagal simpan payment", "error"); }
-  };
-
-  const handleSaveContact = async () => {
-    if(!contactForm.platform_name || !contactForm.url) return showToast("Data kurang", "error");
-    try {
-        if(editingContact) await supabase.from('contact_methods').update(contactForm).eq('id', editingContact.id);
-        else await supabase.from('contact_methods').insert([contactForm]);
-        setIsContactModalOpen(false);
-        fetchContactMethods();
-        showToast("Kontak Sukses Disimpan", "success");
-    } catch (err) { showToast("Gagal simpan kontak", "error"); }
-  };
-
-  const handleSaveVoucher = async () => {
-    if(!voucherForm.code || !voucherForm.amount) return showToast("Data kurang", "error");
-    const payload = { ...voucherForm, amount: parseInt(voucherForm.amount.toString()) };
-    try {
-        if(editingVoucher) await supabase.from('vouchers').update(payload).eq('id', editingVoucher.id);
-        else await supabase.from('vouchers').insert([payload]);
-        setIsVoucherModalOpen(false);
-        fetchVouchers();
-        showToast("Voucher Sukses Disimpan", "success");
-    } catch (err) { showToast("Gagal simpan voucher", "error"); }
-  };
-
-  // --- TRANSACTION MANAGEMENT (UPDATED) ---
-  const handleUpdateStatus = async (transactionId: string, newStatus: string) => {
-    try {
-      await supabase.from('transactions').update({ status: newStatus }).eq('id', transactionId);
-      setTransactions(prev => prev.map(t => t.id === transactionId ? { ...t, status: newStatus } : t));
-      if(selectedTrxDetail && selectedTrxDetail.id === transactionId) setSelectedTrxDetail({...selectedTrxDetail, status: newStatus});
-      showToast(`Status diubah: ${newStatus}`, "success");
-    } catch (err) { showToast("Gagal update status", "error"); } 
-  };
-
-  const handleBulkStatusUpdate = async (status: string) => {
-    if(selectedTrxIds.length === 0) return;
-    if(!confirm(`Ubah status ${selectedTrxIds.length} transaksi menjadi ${status}?`)) return;
-
-    try {
-        await supabase.from('transactions').update({ status: status }).in('id', selectedTrxIds);
-        setTransactions(prev => prev.map(t => selectedTrxIds.includes(t.id) ? { ...t, status: status } : t));
-        setSelectedTrxIds([]);
-        showToast("Bulk Status Update Sukses", "success");
-    } catch (err) { showToast("Gagal update bulk", "error"); }
-  };
-
-  const handleStaffLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsStaffLoginLoading(true);
-    try {
-      const { data } = await supabase.from('admins').select('*').eq('pin', staffPinInput).single();
-      if (data) {
-        setIsStaffLoggedIn(true);
-        localStorage.setItem('isStaffLoggedIn', 'true');
-        showToast("Login Berhasil", "success");
-        setStaffPinInput('');
-      } else { showToast("PIN Salah!", "error"); }
-    } catch (err) { showToast("Koneksi Error", "error"); }
-    finally { setIsStaffLoginLoading(false); }
-  };
-
-  const handleLogout = () => {
-    setIsStaffLoggedIn(false);
-    localStorage.removeItem('isStaffLoggedIn');
-    setActivePage('home');
-  };
-
-  const handleNextStep = () => {
-    let isValid = true;
-    let errors = { name: '', email: '', device_model: '', game_id: '' };
-    if (buyerForm.name.length < 3) { errors.name = 'Min 3 karakter'; isValid = false; }
-    const phoneRegex = /^08[0-9]{8,13}$/;
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!phoneRegex.test(buyerForm.email) && !emailRegex.test(buyerForm.email)) {
-       errors.email = 'Harus Email atau No. HP (08...)'; isValid = false;
+      const res = editingItem?.id 
+        ? await supabase.from(table).update(payload).eq('id', editingItem.id)
+        : await supabase.from(table).insert([payload]);
+      
+      if (res.error) throw new Error(res.error.message);
+      
+      showToast("Berhasil Disimpan", "success"); 
+      setModalType(null); 
+      setEditingItem(null);
+      refreshAdminData(); 
+      fetchPublicData();
+    } catch (err: any) { 
+        showToast("Gagal: " + err.message, "error"); 
     }
-    if (selectedProduct?.category === 'Akun' && !buyerForm.device_model) { errors.device_model = 'Wajib diisi untuk Akun'; isValid = false; }
-    if (selectedProduct?.category === 'TopUp' && (!topUpForm.userId)) { errors.game_id = 'ID Wajib diisi'; isValid = false; }
-    if (selectedProduct?.category === 'TopUp' && !accNick && topUpForm.userId) { showToast("Silakan Cek ID terlebih dahulu!", "error"); isValid = false; }
-
-    setFormErrors(errors);
-    if(isValid) setCheckoutStep(2); else showToast("Data belum lengkap!", "error");
   };
 
-  const finalPrice = useMemo(() => {
-    if (!selectedProduct) return 0;
-    let price = selectedProduct.price;
-    if (appliedVoucher) price -= appliedVoucher.amount;
-    return price < 0 ? 0 : price;
-  }, [selectedProduct, appliedVoucher]);
+  const handleDelete = async (table: string, id: string) => {
+    if(!confirm("Hapus data ini secara permanen?")) return;
+    try {
+        await supabase.from(table).delete().eq('id', id);
+        refreshAdminData(); 
+        fetchPublicData();
+        showToast("Terhapus", "success");
+    } catch (err) { showToast("Gagal hapus", "error"); }
+  };
 
-  const handleCheckoutSubmit = async () => {
-    if (!selectedPayment) return showToast("Pilih metode pembayaran!", "error");
+  // Bulk Delete Feature Recovery
+  const handleBulkDelete = async () => {
+      if(selectedIds.length === 0 || !confirm(`Hapus ${selectedIds.length} item?`)) return;
+      await supabase.from('transactions').delete().in('id', selectedIds);
+      setSelectedIds([]);
+      refreshAdminData();
+      showToast("Bulk delete sukses", "success");
+  };
+
+  const handleStatusChange = async (id: string, newStatus: string) => {
+      await supabase.from('transactions').update({status: newStatus}).eq('id', id);
+      refreshAdminData();
+      showToast(`Status: ${newStatus}`, "success");
+  };
+
+  const handleToggleActive = async (table: string, id: string, current: boolean) => {
+      await supabase.from(table).update({is_active: !current}).eq('id', id);
+      refreshAdminData(); fetchPublicData();
+      showToast(`Status diubah`, "success");
+  };
+
+  const handleCheckout = async () => {
+    if(!selectedPayment) return showToast("Pilih metode pembayaran", "error");
     setIsSubmitting(true);
+    const finalPrice = Math.max(0, selectedProduct.price - (appliedVoucher?.amount || 0));
     const trxData = {
       buyer_name: buyerForm.name,
       buyer_email: buyerForm.email,
       product_name: selectedProduct.name,
-      price: finalPrice, 
+      price: finalPrice,
       payment_method: selectedPayment.name,
       status: 'Pending',
-      device_model: selectedProduct.category === 'TopUp' ? `${topUpForm.userId} (${topUpForm.zoneId}) - ${accNick}` : (buyerForm.device_model || '-'),
+      device_model: selectedProduct.category === 'TopUp' ? `${topUpForm.userId} (${topUpForm.zoneId})` : buyerForm.device_model
     };
-    try {
-      const { data, error } = await supabase.from('transactions').insert([trxData]).select();
-      if (error) throw error;
-      const newTrxId = data?.[0]?.id || 'NEW';
-      const waLink = contactMethods.find(c => (c.platform_name || '').toLowerCase().includes('whatsapp'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
-      let msgDetails = selectedProduct.category === 'TopUp' ? `🎮 ID: ${topUpForm.userId} (${topUpForm.zoneId})\n👤 Nick: ${accNick}\n` : selectedProduct.category === 'Akun' ? `📱 Device: ${buyerForm.device_model}\n` : '';
-      let voucherMsg = appliedVoucher ? `\n🎟️ Voucher: ${appliedVoucher.code} (-Rp ${appliedVoucher.amount.toLocaleString()})` : '';
-      const msg = `Halo Admin, Order Baru! 🚀\n📦 ${selectedProduct.name}\n💰 Rp ${finalPrice.toLocaleString()} ${voucherMsg}\n\n👤 ${buyerForm.name}\n📞 ${buyerForm.email}\n${msgDetails}💳 ${selectedPayment.name}\n🆔 ${newTrxId}`;
-      window.open(`${waLink}?text=${encodeURIComponent(msg)}`, '_blank');
-      showToast("Order Berhasil!", "success");
-      setSelectedProduct(null);
-      setCheckoutStep(1);
-      setBuyerForm({ name: '', email: '', device_model: '' });
-      setTopUpForm({ userId: '', zoneId: '' });
-      setAccNick('');
-      setAppliedVoucher(null);
-      setVoucherCode('');
-    } catch (err) { showToast("Gagal Order", "error"); } 
-    finally { setIsSubmitting(false); }
+
+    const { data, error } = await supabase.from('transactions').insert([trxData]).select();
+    if(!error) {
+       const newId = data?.[0]?.id || 'NEW';
+       const wa = contactMethods.find(c => c.platform_name.toLowerCase().includes('wa'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
+       const msg = `Halo Admin, Order Baru!\nID: ${newId}\nItem: ${selectedProduct.name}\nTotal: Rp ${finalPrice.toLocaleString()}\nVia: ${selectedPayment.name}`;
+       window.open(`${wa}?text=${encodeURIComponent(msg)}`, '_blank');
+       
+       showToast("Order Berhasil Dibuat!", "success"); 
+       setSelectedProduct(null); 
+       setCheckoutStep(1);
+       setBuyerForm({ name: '', email: '', device_model: '' }); 
+    } else showToast("Gagal: " + error.message, "error");
+    setIsSubmitting(false);
   };
 
-  const filteredProducts = useMemo(() => {
-    let result = products.filter(p => (p.name || '').toLowerCase().includes(searchQuery.toLowerCase()) && (selectedCategory === 'All' || p.category === selectedCategory));
-    if (sortBy === 'price_low') result.sort((a, b) => a.price - b.price);
-    else if (sortBy === 'price_high') result.sort((a, b) => b.price - a.price);
-    else if (sortBy === 'name') result.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    return result;
-  }, [products, searchQuery, selectedCategory, sortBy]);
-
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const paginatedProducts = useMemo(() => {
-    const start = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredProducts.slice(start, start + ITEMS_PER_PAGE);
-  }, [filteredProducts, currentPage]);
-
-  const changePage = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) { setCurrentPage(newPage); window.scrollTo({ top: 400, behavior: 'smooth' }); }
-  }
-
-  // Admin Trx Logic
-  const filteredAdminTrx = useMemo(() => {
-    return transactions.filter(t => {
-      const matchSearch = (t.buyer_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) || 
-                          (t.product_name || "").toLowerCase().includes(adminSearchTrx.toLowerCase()) ||
-                          (t.id || "").toString().includes(adminSearchTrx);
-      const matchStatus = statusFilter === 'all' || t.status === statusFilter;
-      return matchSearch && matchStatus;
-    });
-  }, [transactions, adminSearchTrx, statusFilter]);
-
-  const totalAdminTrxPages = Math.ceil(filteredAdminTrx.length / ADMIN_TRX_PER_PAGE);
-  const paginatedAdminTrx = useMemo(() => {
-    const start = (adminTrxPage - 1) * ADMIN_TRX_PER_PAGE;
-    return filteredAdminTrx.slice(start, start + ADMIN_TRX_PER_PAGE);
-  }, [filteredAdminTrx, adminTrxPage]);
-
-  const { totalRevenue, topProducts, paymentCount, lowStockCount } = useMemo(() => {
-    const rev = transactions.reduce((acc, curr) => acc + (curr.price || 0), 0);
-    const pCount = transactions.reduce((acc: any, curr) => { acc[curr.product_name] = (acc[curr.product_name] || 0) + 1; return acc; }, {});
-    const top = Object.entries(pCount).sort((a:any, b:any) => b[1] - a[1]).slice(0, 3);
-    const payCount = transactions.reduce((acc: any, curr) => { acc[curr.payment_method] = (acc[curr.payment_method] || 0) + 1; return acc; }, {});
-    const lowStock = products.filter(p => !p.is_ready).length;
-    return { totalRevenue: rev, topProducts: top, paymentCount: payCount, lowStockCount: lowStock };
-  }, [transactions, products]);
-
-  if (!mounted) return null;
-
+  // --- RENDER ---
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#09090b] text-slate-900 dark:text-slate-100 font-sans relative overflow-hidden">
-        {/* BG ANIMATION */}
-        <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-           <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-purple-500/30 rounded-full blur-[100px] animate-pulse mix-blend-multiply opacity-70"></div>
-           <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-cyan-500/30 rounded-full blur-[100px] animate-pulse delay-700 mix-blend-multiply opacity-70"></div>
+    <div className="min-h-screen font-sans text-slate-800">
+      <Background />
+      {toast && <Toast message={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
+
+      {/* FLOATING NAVBAR */}
+      <nav className="fixed top-0 inset-x-0 md:top-4 md:inset-x-6 z-50 bg-white/80 backdrop-blur-md border-b md:border border-slate-200 md:rounded-2xl shadow-sm transition-all">
+        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className="flex items-center gap-3 cursor-pointer" onClick={()=>setActivePage('home')}>
+                <img src={STORE_LOGO} className="w-9 h-9 rounded-full border border-white shadow-sm object-cover"/>
+                <div>
+                    <h1 className="font-black text-xl leading-none tracking-tight text-slate-900">WuregStore</h1>
+                    <p className="text-[9px] font-bold text-slate-500 tracking-widest uppercase">Official</p>
+                </div>
+            </div>
+            
+            <div className="hidden md:flex items-center gap-1 bg-white/50 p-1 rounded-xl border border-slate-100">
+                {['home', 'tracking', 'staff'].map(page => (
+                    <button key={page} onClick={()=>setActivePage(page)} className={`px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wide transition-all ${activePage===page ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-100'}`}>
+                        {page}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+                 <button onClick={()=>setIsContactModalOpen(true)} className="hidden md:flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 shadow-md transition-all"><MessageCircle size={16}/> Bantuan</button>
+                 <button onClick={()=>setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2 bg-slate-100 rounded-xl text-slate-600"><AlignJustify size={20}/></button>
+            </div>
         </div>
         
-        {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-
-        {/* NAVBAR */}
-        <nav className="fixed top-5 left-1/2 -translate-x-1/2 w-[95%] max-w-5xl z-50 bg-white/30 dark:bg-black/30 backdrop-blur-xl border border-white/50 dark:border-white/10 shadow-lg rounded-full">
-          <div className="px-6 h-16 flex items-center justify-between">
-            <div className="flex items-center gap-3 cursor-pointer" onClick={() => { setActivePage('home'); setIsContactOpen(false); }}>
-              <img src="https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383" alt="Logo" className="w-9 h-9 rounded-xl shadow-lg shadow-cyan-500/30"/>
-              <span className="text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-600 dark:from-white dark:to-slate-400">WuregStore</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setActivePage('home')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all ${activePage === 'home' ? 'bg-white/80 dark:bg-white/10 text-cyan-600' : 'text-slate-600 dark:text-slate-300'}`}>Store</button>
-              <button onClick={() => setActivePage('staff')} className={`hidden md:block text-sm font-bold px-4 py-2 rounded-full transition-all ${activePage === 'staff' ? 'bg-white/80 dark:bg-white/10 text-cyan-600' : 'text-slate-600 dark:text-slate-300'}`}>Staff</button>
-              <button onClick={() => setIsFaqOpen(true)} className="hidden md:flex items-center gap-2 text-slate-600 dark:text-slate-300 px-3 hover:text-cyan-500 transition-colors" title="Bantuan & FAQ"><HelpCircle size={20}/></button>
-              <button onClick={() => setIsContactOpen(true)} className="hidden md:flex items-center gap-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-5 py-2 rounded-full text-sm font-bold"><Menu size={16}/> Contact</button>
-              <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="md:hidden p-2"><AlignJustify size={24}/></button>
-            </div>
-          </div>
-          {isMobileMenuOpen && (
-             <div className="md:hidden absolute top-20 left-0 w-full bg-white/90 dark:bg-zinc-950/90 backdrop-blur-md rounded-3xl border border-white/20 p-2 flex flex-col gap-1 shadow-xl z-50">
-                <button onClick={() => {setActivePage('home'); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><ShoppingCart size={20}/> Store</button>
-                <button onClick={() => {setActivePage('staff'); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><ShieldCheck size={20}/> Staff</button>
-                <button onClick={() => {setIsFaqOpen(true); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><HelpCircle size={20}/> FAQ</button>
-                <button onClick={() => {setIsContactOpen(true); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left flex gap-3"><Mail size={20}/> Contact</button>
-             </div>
-          )}
-        </nav>
-
-        {/* MAIN CONTENT */}
-        <main className="container mx-auto px-4 pt-36 pb-20 min-h-screen relative z-10">
-          {activePage === 'home' ? (
-             <div className="space-y-12 animate-fadeIn">
-                {/* Promo Banner */}
-                <div className="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
-                   <div className="absolute top-0 right-0 opacity-20"><Tag size={120}/></div>
-                   <div className="relative z-10"><h3 className="text-2xl font-black mb-1">FLASH SALE 🔥</h3><p className="font-medium text-yellow-100">Harga termurah & Produk terbaik!</p></div>
-                </div>
-
-                {/* Search */}
-                <div className="text-center py-10">
-                  <div className="max-w-lg mx-auto relative flex items-center bg-white/90 dark:bg-black/90 rounded-full p-1.5 shadow-2xl backdrop-blur-xl">
-                      <div className="pl-4 text-slate-400"><Search size={22}/></div>
-                      <input type="text" placeholder="Cari item..." className="w-full bg-transparent border-none focus:ring-0 px-4 py-3 font-medium text-slate-800 dark:text-white" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}/>
-                  </div>
-                </div>
-
-                {/* Filter & Sort */}
-                <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-                   <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide w-full md:w-auto">
-                     {['All', 'Game', 'TopUp', 'Akun', 'Software'].map(cat => (
-                       <button key={cat} onClick={() => {setSelectedCategory(cat); setCurrentPage(1);}} className={`px-6 py-2 rounded-full text-sm font-bold border backdrop-blur-md ${selectedCategory === cat ? 'bg-slate-900 dark:bg-white text-white dark:text-black scale-105' : 'bg-white/50 dark:bg-zinc-900/50 text-slate-700 dark:text-slate-300'}`}>{cat}</button>
-                     ))}
-                   </div>
-                   <div className="relative"><select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)} className="bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md border border-white/50 dark:border-white/10 font-bold py-2 px-4 rounded-full focus:outline-none cursor-pointer"><option value="default">✨ Rekomendasi</option><option value="price_low">💰 Termurah</option><option value="price_high">💎 Termahal</option></select></div>
-                </div>
-
-                {/* Product Grid */}
-                {isLoading ? (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">{[1,2,3,4,5,6,7,8].map(i=><div key={i} className="h-64 bg-slate-200 dark:bg-zinc-800 rounded-3xl animate-pulse"/>)}</div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                        {paginatedProducts.map(product => (
-                          <div key={product.id} onClick={() => product.is_ready ? (setSelectedProduct(product), setCheckoutStep(1)) : null} className={`group bg-white/70 dark:bg-zinc-900/60 backdrop-blur-md border border-white/50 dark:border-white/10 rounded-3xl p-4 relative overflow-hidden transition-all duration-500 ${product.is_ready ? 'cursor-pointer hover:shadow-2xl hover:-translate-y-2' : 'opacity-60 grayscale cursor-not-allowed'}`}>
-                              {product.label && <div className="absolute top-4 left-4 z-10 bg-yellow-400 text-yellow-900 text-[10px] font-black px-2 py-1 rounded-full uppercase shadow-md">{product.label}</div>}
-                              <div className="aspect-[4/3] bg-slate-100 dark:bg-black/40 rounded-2xl mb-5 overflow-hidden relative shadow-inner">
-                                {product.image_url ? <img src={product.image_url} className="w-full h-full object-cover"/> : <div className="absolute inset-0 flex items-center justify-center font-black text-4xl opacity-20">{product.name.slice(0,2)}</div>}
-                                {!product.is_ready && <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xl rotate-12 border-2 border-white m-8 rounded-xl">HABIS</div>}
-                              </div>
-                              <h3 className="font-bold text-lg line-clamp-1">{product.name}</h3>
-                              <div className="flex justify-between items-center mt-2"><p className="text-cyan-600 dark:text-cyan-400 font-black">Rp {product.price?.toLocaleString()}</p><div className={`p-2 rounded-full ${product.is_ready ? 'bg-slate-100 dark:bg-white/5' : 'bg-red-100 text-red-500'}`}><ShoppingCart size={18}/></div></div>
-                              <div className={`mt-3 flex items-center gap-1 text-[10px] font-bold uppercase ${product.is_ready ? 'text-green-600' : 'text-red-600'}`}><div className={`w-2 h-2 rounded-full ${product.is_ready ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div> {product.is_ready ? 'Ready Stock' : 'Stok Kosong'}</div>
-                          </div>
-                        ))}
-                    </div>
-
-                    {/* Pagination Controls */}
-                    {totalPages > 1 && (
-                        <div className="flex justify-center items-center gap-4 mt-12">
-                            <button onClick={() => changePage(currentPage - 1)} disabled={currentPage === 1} className="p-3 rounded-full bg-white dark:bg-zinc-800 disabled:opacity-50"><ChevronLeft/></button>
-                            <span className="font-bold">Page {currentPage} of {totalPages}</span>
-                            <button onClick={() => changePage(currentPage + 1)} disabled={currentPage === totalPages} className="p-3 rounded-full bg-white dark:bg-zinc-800 disabled:opacity-50"><ChevronRight/></button>
-                        </div>
-                    )}
-                  </>
-                )}
-             </div>
-          ) : (
-            // --- STAFF PAGE ---
-            <div className="animate-fadeIn max-w-6xl mx-auto">
-               {!isStaffLoggedIn ? (
-                 <div className="max-w-md mx-auto bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-10 rounded-[2.5rem] border border-white/50 dark:border-white/10 shadow-2xl mt-20 text-center">
-                    <ShieldCheck size={48} className="mx-auto mb-4 text-cyan-600"/>
-                    <h2 className="text-3xl font-black mb-2 text-slate-900 dark:text-white">Staff Access</h2>
-                    <form onSubmit={handleStaffLogin} className="space-y-6 mt-6">
-                       <input type="password" value={staffPinInput} onChange={e=>setStaffPinInput(e.target.value)} className="w-full bg-slate-50 dark:bg-black/50 border border-slate-200 dark:border-white/10 p-4 rounded-2xl text-center text-3xl tracking-[0.5em] font-bold outline-none focus:border-cyan-500" placeholder="••••"/>
-                       <button disabled={isStaffLoginLoading} className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 text-white font-bold py-4 rounded-2xl hover:-translate-y-1 transition-all flex justify-center">{isStaffLoginLoading ? <Loader2 className="animate-spin"/> : 'LOGIN'}</button>
-                    </form>
-                 </div>
-               ) : (
-                 <div className="space-y-6">
-                    {/* STAFF HEADER & TABS */}
-                    <div className="flex flex-col xl:flex-row justify-between items-center bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-4 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm gap-4">
-                       <div className="flex flex-wrap justify-center gap-2 p-1 bg-slate-100 dark:bg-black/40 rounded-3xl">
-                          <button onClick={() => setActiveAdminTab('dashboard')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'dashboard' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Dashboard</button>
-                          <button onClick={() => setActiveAdminTab('transactions')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'transactions' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Transaksi</button>
-                          <button onClick={() => setActiveAdminTab('products')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'products' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Produk</button>
-                          <button onClick={() => setActiveAdminTab('payments')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'payments' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Payments</button>
-                          <button onClick={() => setActiveAdminTab('vouchers')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'vouchers' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Vouchers</button>
-                          <button onClick={() => setActiveAdminTab('contacts')} className={`px-4 py-2 rounded-full font-bold text-xs transition-all ${activeAdminTab === 'contacts' ? 'bg-white dark:bg-zinc-800 shadow text-cyan-600' : 'text-slate-500'}`}>Contacts</button>
-                       </div>
-                       <div className="flex gap-2">
-                           <button onClick={refreshAllData} className={`p-3 rounded-full bg-slate-100 dark:bg-white/10 text-cyan-600 hover:rotate-180 transition-all ${isRefreshing ? 'animate-spin' : ''}`} title="Refresh Data"><RefreshCw size={18}/></button>
-                           <button onClick={handleLogout} className="px-4 py-2 bg-red-50 text-red-500 rounded-full font-bold text-sm hover:bg-red-100 flex items-center gap-2"><LogOut size={16}/> Logout</button>
-                       </div>
-                    </div>
-
-                    {activeAdminTab === 'dashboard' && (
-                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-slideIn">
-                          <div className="bg-gradient-to-br from-cyan-500 to-blue-600 p-6 rounded-3xl text-white shadow-lg"><h3 className="text-3xl font-black">Rp {totalRevenue.toLocaleString()}</h3><p className="opacity-80">Total Omzet</p></div>
-                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10"><h3 className="text-3xl font-black">{transactions.length}</h3><p className="text-slate-500">Total Order</p></div>
-                          <div className="bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10 flex justify-between items-center"><div><h3 className="text-3xl font-black text-red-500">{lowStockCount}</h3><p className="text-slate-500">Stok Habis</p></div><div className="p-3 bg-red-100 dark:bg-red-900/20 rounded-2xl text-red-500"><AlertTriangle size={32}/></div></div>
-                          
-                          <div className="col-span-1 md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
-                             <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
-                                <h4 className="font-bold mb-4 flex items-center gap-2"><Star size={20} className="text-yellow-500"/> Produk Terlaris</h4>
-                                <div className="space-y-3">{topProducts.map(([name, count]: any, idx: number) => (<div key={idx} className="flex justify-between items-center p-3 bg-slate-50 dark:bg-white/5 rounded-xl"><div className="flex items-center gap-3"><div className="font-black text-slate-300">#{idx+1}</div><span className="font-bold">{name}</span></div><span className="bg-green-100 text-green-700 px-2 py-1 rounded-lg text-xs font-bold">{count}x</span></div>))}</div>
-                             </div>
-                             <div className="bg-white/80 dark:bg-zinc-900/80 p-6 rounded-[2rem] border border-white/50 dark:border-white/10">
-                                <h4 className="font-bold mb-4 flex items-center gap-2"><CreditCard size={20} className="text-blue-500"/> Metode Pembayaran</h4>
-                                <div className="space-y-4">{Object.entries(paymentCount).map(([method, count]: any) => (<div key={method}><div className="flex justify-between text-xs font-bold mb-1"><span>{method}</span><span>{count}</span></div><div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-cyan-500 rounded-full" style={{width: `${(count / transactions.length) * 100}%`}}></div></div></div>))}</div>
-                             </div>
-                          </div>
-                       </div>
-                    )}
-
-                    {activeAdminTab === 'transactions' && (
-                      <div className="space-y-6 animate-slideIn">
-                          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl p-6 rounded-[2rem] border border-white/50 dark:border-white/10 shadow-sm">
-                             {/* FILTER BAR */}
-                             <div className="flex flex-col gap-4 mb-6">
-                                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                                   <div className="flex gap-2 items-center overflow-x-auto pb-2 w-full md:w-auto">
-                                       <select value={statusFilter} onChange={(e) => {setStatusFilter(e.target.value as any); setAdminTrxPage(1);}} className="bg-slate-50 dark:bg-black/30 px-3 py-2 rounded-xl text-xs font-bold border-none outline-none cursor-pointer">
-                                          <option value="all">Semua Status</option>
-                                          <option value="Pending">Pending</option>
-                                          <option value="Proses">Proses</option>
-                                          <option value="Selesai">Selesai</option>
-                                          <option value="Gagal">Gagal</option>
-                                       </select>
-                                       <div className="h-6 w-[1px] bg-slate-300 dark:bg-white/20 mx-2"></div>
-                                       {/* DATE RANGE */}
-                                       <div className="flex items-center gap-2 bg-slate-50 dark:bg-black/30 px-3 py-1.5 rounded-xl">
-                                          <Calendar size={14} className="text-slate-400"/>
-                                          <input type="date" className="bg-transparent border-none text-xs font-bold outline-none" value={dateRange.start} onChange={e => setDateRange({...dateRange, start: e.target.value})}/>
-                                          <span className="text-xs">-</span>
-                                          <input type="date" className="bg-transparent border-none text-xs font-bold outline-none" value={dateRange.end} onChange={e => setDateRange({...dateRange, end: e.target.value})}/>
-                                       </div>
-                                       <button onClick={() => setDateRange({start:'', end:''})} className="text-xs text-red-500 font-bold hover:underline">Reset</button>
-                                   </div>
-                                   <div className="flex gap-2 w-full md:w-auto">
-                                       <input type="text" placeholder="Cari ID / Nama..." className="bg-slate-50 dark:bg-black/30 px-4 py-2 rounded-xl text-sm border-none focus:ring-2 ring-cyan-500/50 w-full" value={adminSearchTrx} onChange={(e) => {setAdminSearchTrx(e.target.value); setAdminTrxPage(1);}}/>
-                                       <button onClick={exportToCSV} className="px-4 py-2 bg-green-600 text-white rounded-xl text-xs font-bold flex items-center gap-2 hover:bg-green-700"><FileSpreadsheet size={16}/> Export</button>
-                                   </div>
-                                </div>
-                             </div>
-
-                             {/* BULK ACTIONS TOOLBAR */}
-                             {selectedTrxIds.length > 0 && (
-                                <div className="mb-4 flex items-center gap-3 p-3 bg-slate-100 dark:bg-white/5 rounded-xl animate-fadeIn">
-                                    <span className="text-xs font-bold">{selectedTrxIds.length} Dipilih</span>
-                                    <div className="h-4 w-[1px] bg-slate-300"></div>
-                                    <button onClick={() => handleBulkDelete('transactions', selectedTrxIds, setTransactions, setSelectedTrxIds)} className="text-red-500 text-xs font-bold flex items-center gap-1 hover:bg-red-100 p-1.5 rounded"><Trash2 size={14}/> Hapus</button>
-                                    <button onClick={() => handleBulkStatusUpdate('Selesai')} className="text-green-600 text-xs font-bold flex items-center gap-1 hover:bg-green-100 p-1.5 rounded"><CheckCircle size={14}/> Set Selesai</button>
-                                    <button onClick={() => handleBulkStatusUpdate('Proses')} className="text-blue-600 text-xs font-bold flex items-center gap-1 hover:bg-blue-100 p-1.5 rounded"><Clock size={14}/> Set Proses</button>
-                                </div>
-                             )}
-
-                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                   <thead className="text-xs text-slate-500 uppercase bg-slate-50/50 dark:bg-white/5">
-                                      <tr>
-                                        <th className="p-4 rounded-l-xl w-10">
-                                            <div onClick={() => handleSelectAll(paginatedAdminTrx, selectedTrxIds, setSelectedTrxIds)} className="cursor-pointer">
-                                                {paginatedAdminTrx.length > 0 && selectedTrxIds.length === paginatedAdminTrx.length ? <CheckSquare size={16} className="text-cyan-600"/> : <Square size={16}/>}
-                                            </div>
-                                        </th>
-                                        <th className="p-4">Tanggal & ID</th>
-                                        <th className="p-4">Produk & Harga</th>
-                                        <th className="p-4">Pembeli</th>
-                                        <th className="p-4">Payment</th>
-                                        <th className="p-4">Status</th>
-                                        <th className="p-4 rounded-r-xl">Aksi</th>
-                                      </tr>
-                                   </thead>
-                                   <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-                                      {paginatedAdminTrx.map(t => (
-                                         <tr key={t.id} className={selectedTrxIds.includes(t.id) ? 'bg-cyan-50 dark:bg-cyan-900/10' : ''}>
-                                            <td className="p-4">
-                                                <div onClick={() => toggleSelection(t.id, selectedTrxIds, setSelectedTrxIds)} className="cursor-pointer">
-                                                    {selectedTrxIds.includes(t.id) ? <CheckSquare size={16} className="text-cyan-600"/> : <Square size={16} className="text-slate-300"/>}
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="text-[10px] text-slate-500 mb-1">{new Date(t.created_at).toLocaleDateString()} {new Date(t.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
-                                                <span className="font-mono text-xs bg-slate-100 dark:bg-white/10 p-1 rounded select-all">{t.id?.toString().slice(0,8)}</span>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="font-bold">{t.product_name}</div>
-                                                <div className="text-xs text-cyan-600 font-bold">Rp {t.price?.toLocaleString()}</div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="font-bold text-xs">{t.buyer_name}</div>
-                                                <div className="text-[10px] opacity-60">{t.buyer_email}</div>
-                                                <div className="text-[10px] font-mono mt-1 opacity-50">{t.device_model || '-'}</div>
-                                            </td>
-                                            <td className="p-4"><span className="text-xs font-bold bg-slate-50 dark:bg-white/5 px-2 py-1 rounded-lg">{t.payment_method}</span></td>
-                                            <td className="p-4">
-                                                <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-                                                    t.status === 'Selesai' ? 'bg-green-100 text-green-600' : 
-                                                    t.status === 'Gagal' ? 'bg-red-100 text-red-600' : 
-                                                    t.status === 'Proses' ? 'bg-blue-100 text-blue-600' : 'bg-yellow-100 text-yellow-600'
-                                                }`}>
-                                                    {t.status}
-                                                </span>
-                                            </td>
-                                            <td className="p-4 flex gap-2"><button onClick={() => setSelectedTrxDetail(t)} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Eye size={14}/></button></td>
-                                         </tr>
-                                      ))}
-                                   </tbody>
-                                </table>
-                             </div>
-                             
-                             {/* ADMIN PAGINATION */}
-                             {totalAdminTrxPages > 1 && (
-                                <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
-                                    <button onClick={() => setAdminTrxPage(p => Math.max(1, p - 1))} disabled={adminTrxPage === 1} className="text-xs font-bold px-3 py-1 disabled:opacity-50">Prev</button>
-                                    <span className="text-xs">Page {adminTrxPage} of {totalAdminTrxPages}</span>
-                                    <button onClick={() => setAdminTrxPage(p => Math.min(totalAdminTrxPages, p + 1))} disabled={adminTrxPage === totalAdminTrxPages} className="text-xs font-bold px-3 py-1 disabled:opacity-50">Next</button>
-                                </div>
-                             )}
-                          </div>
-                      </div>
-                    )}
-
-                    {activeAdminTab === 'products' && (
-                      <div className="space-y-6 animate-slideIn">
-                          <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                             <div className="flex items-center gap-3">
-                                 <h3 className="text-2xl font-black">Produk</h3>
-                                 {selectedProductIds.length > 0 && <button onClick={() => handleBulkDelete('products', selectedProductIds, setProducts, setSelectedProductIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedProductIds.length})</button>}
-                             </div>
-                             <button onClick={() => { setEditingProduct(null); setProductForm({ name: '', price: '', category: 'Game', image_url: '', label: '', is_ready: true }); setIsProductModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                             {products.map(p => (
-                                <div key={p.id} className={`bg-white/80 dark:bg-zinc-900/80 p-4 rounded-3xl border ${selectedProductIds.includes(p.id) ? 'border-cyan-500 ring-2 ring-cyan-500/20' : 'border-white/50 dark:border-white/10'} flex gap-4 items-center relative overflow-hidden transition-all`}>
-                                   {/* Selection Checkbox */}
-                                   <div className="absolute top-2 left-2 z-30 cursor-pointer" onClick={(e) => { e.stopPropagation(); toggleSelection(p.id, selectedProductIds, setSelectedProductIds); }}>
-                                        {selectedProductIds.includes(p.id) ? <CheckSquare className="text-cyan-500 fill-white" size={20}/> : <Square className="text-slate-300" size={20}/>}
-                                   </div>
-                                   {!p.is_ready && <div className="absolute inset-0 bg-white/50 dark:bg-black/50 z-10 flex items-center justify-center font-bold text-red-600 rotate-12 border-2 border-red-500 m-6 rounded-xl">HABIS</div>}
-                                   <div className="w-16 h-16 bg-slate-100 dark:bg-black/50 rounded-xl overflow-hidden flex-shrink-0">{p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}</div>
-                                   <div className="flex-1 min-w-0"><h4 className="font-bold truncate">{p.name}</h4><p className="text-cyan-600 font-bold text-sm">Rp {p.price?.toLocaleString()}</p></div>
-                                   <div className="flex flex-col gap-2 z-20"><button onClick={() => { setEditingProduct(p); setProductForm(p); setIsProductModalOpen(true); }} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-blue-500"><Edit3 size={16}/></button><button onClick={() => handleBulkDelete('products', [p.id], setProducts, setSelectedProductIds)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-lg hover:text-red-500"><Trash2 size={16}/></button></div>
-                                </div>
-                             ))}
-                          </div>
-                      </div>
-                    )}
-
-                    {activeAdminTab === 'payments' && (
-                      <div className="space-y-6 animate-slideIn">
-                          <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                             <div className="flex items-center gap-3">
-                                <h3 className="text-2xl font-black">Metode Pembayaran</h3>
-                                {selectedPaymentIds.length > 0 && <button onClick={() => handleBulkDelete('payment_methods', selectedPaymentIds, setPaymentMethods, setSelectedPaymentIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedPaymentIds.length})</button>}
-                             </div>
-                             <button onClick={() => { setEditingPayment(null); setPaymentForm({ name: '', va_number: '', image_url: '', is_active: true }); setIsPaymentModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             {paymentMethods.map(pm => (
-                                <div key={pm.id} className={`bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border ${selectedPaymentIds.includes(pm.id) ? 'border-cyan-500' : 'border-white/50'} flex justify-between items-center relative`}>
-                                   <div className="absolute top-2 left-2 cursor-pointer" onClick={() => toggleSelection(pm.id, selectedPaymentIds, setSelectedPaymentIds)}>
-                                        {selectedPaymentIds.includes(pm.id) ? <CheckSquare className="text-cyan-500 fill-white" size={18}/> : <Square className="text-slate-300" size={18}/>}
-                                   </div>
-                                   <div className="flex items-center gap-4 pl-4">
-                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{pm.image_url ? <img src={pm.image_url} alt={pm.name} className="w-full h-full object-contain"/> : <Wallet size={20}/>}</div>
-                                      <div><h4 className={`font-bold ${!pm.is_active ? 'line-through opacity-50' : ''}`}>{pm.name}</h4><p className="text-sm font-mono text-slate-500">{pm.va_number}</p></div>
-                                   </div>
-                                   <div className="flex items-center gap-2">
-                                      <button onClick={() => toggleActiveStatus('payment_methods', pm.id, pm.is_active, setPaymentMethods)} className={`text-2xl ${pm.is_active ? 'text-green-500' : 'text-slate-300'}`}>{pm.is_active ? <ToggleRight/> : <ToggleLeft/>}</button>
-                                      <button onClick={() => { setEditingPayment(pm); setPaymentForm(pm); setIsPaymentModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={18}/></button>
-                                      <button onClick={() => handleBulkDelete('payment_methods', [pm.id], setPaymentMethods, setSelectedPaymentIds)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
-                                   </div>
-                                </div>
-                             ))}
-                          </div>
-                      </div>
-                    )}
-
-                    {activeAdminTab === 'vouchers' && (
-                       <div className="space-y-6 animate-slideIn">
-                           <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                               <div className="flex items-center gap-3">
-                                   <h3 className="text-2xl font-black">Voucher Management</h3>
-                                   {selectedVoucherIds.length > 0 && <button onClick={() => handleBulkDelete('vouchers', selectedVoucherIds, setVouchers, setSelectedVoucherIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedVoucherIds.length})</button>}
-                               </div>
-                               <button onClick={() => { setEditingVoucher(null); setVoucherForm({ code: '', amount: '', is_active: true }); setIsVoucherModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
-                           </div>
-                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                               {vouchers.map(v => (
-                                   <div key={v.id} className={`bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border ${selectedVoucherIds.includes(v.id) ? 'border-cyan-500' : 'border-white/50'} flex justify-between items-center relative`}>
-                                       <div className="absolute top-2 left-2 cursor-pointer" onClick={() => toggleSelection(v.id, selectedVoucherIds, setSelectedVoucherIds)}>
-                                           {selectedVoucherIds.includes(v.id) ? <CheckSquare className="text-cyan-500 fill-white" size={18}/> : <Square className="text-slate-300" size={18}/>}
-                                       </div>
-                                       <div className="flex items-center gap-4 pl-4">
-                                           <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center"><Ticket size={24}/></div>
-                                           <div>
-                                               <h4 className={`font-bold ${!v.is_active ? 'line-through opacity-50' : ''}`}>{v.code}</h4>
-                                               <p className="text-sm font-bold text-green-500">Disc: Rp {v.amount.toLocaleString()}</p>
-                                           </div>
-                                       </div>
-                                       <div className="flex items-center gap-2">
-                                           <button onClick={() => toggleActiveStatus('vouchers', v.id, v.is_active, setVouchers)} className={`text-2xl ${v.is_active ? 'text-green-500' : 'text-slate-300'}`}>{v.is_active ? <ToggleRight/> : <ToggleLeft/>}</button>
-                                           <button onClick={() => { setEditingVoucher(v); setVoucherForm(v); setIsVoucherModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={18}/></button>
-                                           <button onClick={() => handleBulkDelete('vouchers', [v.id], setVouchers, setSelectedVoucherIds)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
-                                       </div>
-                                   </div>
-                               ))}
-                           </div>
-                       </div>
-                    )}
-
-                    {activeAdminTab === 'contacts' && (
-                      <div className="space-y-6 animate-slideIn">
-                          <div className="flex justify-between items-center bg-white/60 dark:bg-zinc-900/60 p-6 rounded-3xl border border-white/50 dark:border-white/10">
-                             <div className="flex items-center gap-3">
-                                 <h3 className="text-2xl font-black">Kontak Admin</h3>
-                                 {selectedContactIds.length > 0 && <button onClick={() => handleBulkDelete('contact_methods', selectedContactIds, setContactMethods, setSelectedContactIds)} className="bg-red-500 text-white px-3 py-1 rounded-lg text-xs font-bold animate-fadeIn">Hapus ({selectedContactIds.length})</button>}
-                             </div>
-                             <button onClick={() => { setEditingContact(null); setContactForm({ platform_name: '', url: '', image_url: '', is_active: true }); setIsContactModalOpen(true); }} className="px-6 py-3 bg-cyan-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2"><Plus size={20}/> Tambah</button>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             {contactMethods.map(cm => (
-                                <div key={cm.id} className={`bg-white/80 dark:bg-zinc-900/80 p-6 rounded-3xl border ${selectedContactIds.includes(cm.id) ? 'border-cyan-500' : 'border-white/50'} flex justify-between items-center relative`}>
-                                   <div className="absolute top-2 left-2 cursor-pointer" onClick={() => toggleSelection(cm.id, selectedContactIds, setSelectedContactIds)}>
-                                        {selectedContactIds.includes(cm.id) ? <CheckSquare className="text-cyan-500 fill-white" size={18}/> : <Square className="text-slate-300" size={18}/>}
-                                   </div>
-                                   <div className="flex items-center gap-4 pl-4">
-                                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center border p-2 overflow-hidden">{cm.image_url ? <img src={cm.image_url} className="w-full h-full object-contain"/> : <Mail size={20}/>}</div>
-                                      <div><h4 className={`font-bold ${!cm.is_active ? 'line-through opacity-50' : ''}`}>{cm.platform_name}</h4><p className="text-xs text-slate-500 truncate max-w-[200px]">{cm.url}</p></div>
-                                   </div>
-                                   <div className="flex items-center gap-2">
-                                      <button onClick={() => toggleActiveStatus('contact_methods', cm.id, cm.is_active, setContactMethods)} className={`text-2xl ${cm.is_active ? 'text-green-500' : 'text-slate-300'}`}>{cm.is_active ? <ToggleRight/> : <ToggleLeft/>}</button>
-                                      <button onClick={() => { setEditingContact(cm); setContactForm(cm); setIsContactModalOpen(true); }} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg"><Edit3 size={18}/></button>
-                                      <button onClick={() => handleBulkDelete('contact_methods', [cm.id], setContactMethods, setSelectedContactIds)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={18}/></button>
-                                   </div>
-                                </div>
-                             ))}
-                          </div>
-                      </div>
-                    )}
-                 </div>
-               )}
-            </div>
-          )}
-        </main>
-
-        {/* --- MODALS --- */}
-        {isFaqOpen && (<div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setIsFaqOpen(false)}><div className="bg-white dark:bg-zinc-900 p-8 rounded-[2rem] max-w-md w-full relative"><button onClick={() => setIsFaqOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 dark:bg-zinc-800 rounded-full"><X size={20}/></button><h3 className="text-2xl font-black mb-6 flex items-center gap-2"><HelpCircle/> Bantuan & FAQ</h3><div className="space-y-4">{FAQ_DATA.map((faq, i) => (<div key={i} className="bg-slate-50 dark:bg-white/5 p-4 rounded-xl"><h4 className="font-bold text-sm mb-1 text-cyan-600">{faq.q}</h4><p className="text-sm text-slate-500">{faq.a}</p></div>))}</div></div></div>)}
-
-        {/* --- MODAL DETAIL TRANSAKSI & DOWNLOAD INVOICE --- */}
-        {selectedTrxDetail && (
-           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn" onClick={(e) => e.target === e.currentTarget && setSelectedTrxDetail(null)}>
-              <div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl relative overflow-hidden">
-                 <div ref={invoiceRef} className="bg-white dark:bg-zinc-900 p-4">
-                     <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-cyan-500 to-blue-600"></div>
-                     <div className="flex justify-between items-center mb-4 mt-2">
-                        <h3 className="text-xl font-black">INVOICE</h3>
-                        <div className="flex items-center gap-2">
-                            <span className="font-mono text-xs bg-slate-100 p-1 rounded">{selectedTrxDetail.id.slice(0,8)}</span>
-                            <button onClick={() => {navigator.clipboard.writeText(selectedTrxDetail.id); showToast("ID Disalin", "success")}} className="p-1 hover:bg-slate-100 rounded"><Copy size={12}/></button>
-                        </div>
-                     </div>
-                     <div className="space-y-4 bg-slate-50 dark:bg-black/20 p-4 rounded-2xl mb-6">
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Tanggal</span><span className="font-bold text-sm">{new Date(selectedTrxDetail.created_at).toLocaleString()}</span></div>
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Pembeli</span><span className="font-bold text-sm">{selectedTrxDetail.buyer_name}</span></div>
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Device/ID</span><span className="font-bold text-sm">{selectedTrxDetail.device_model}</span></div>
-                        <hr className="border-dashed border-slate-300 dark:border-white/10"/>
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Produk</span><span className="font-bold text-sm">{selectedTrxDetail.product_name}</span></div>
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Metode</span><span className="font-bold text-sm">{selectedTrxDetail.payment_method}</span></div>
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Total Bayar</span><span className="font-bold text-sm text-cyan-600">Rp {selectedTrxDetail.price?.toLocaleString()}</span></div>
-                        <div className="flex justify-between"><span className="text-sm text-slate-500">Status</span><span className={`font-bold text-sm uppercase ${selectedTrxDetail.status === 'Selesai' ? 'text-green-600' : selectedTrxDetail.status === 'Proses' ? 'text-blue-600' : selectedTrxDetail.status === 'Gagal' ? 'text-red-600' : 'text-yellow-600'}`}>{selectedTrxDetail.status}</span></div>
-                     </div>
-                     <div className="text-center text-xs text-slate-400">Terima kasih telah berbelanja di WuregStore</div>
-                 </div>
-
-                 <div className="flex flex-col gap-2 mt-2">
-                     <button onClick={downloadInvoice} className="w-full py-3 bg-slate-900 text-white rounded-xl font-bold flex justify-center items-center gap-2"><Download size={18}/> Download JPG</button>
-                     <p className="text-center text-xs font-bold text-slate-400 mt-2">Ubah Status:</p>
-                     <div className="grid grid-cols-4 gap-2">
-                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Pending')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Pending' ? 'bg-yellow-500 text-white' : 'bg-slate-100 hover:bg-yellow-100 text-yellow-600'}`}>PENDING</button>
-                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Proses')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Proses' ? 'bg-blue-600 text-white' : 'bg-slate-100 hover:bg-blue-100 text-blue-600'}`}>PROSES</button>
-                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Selesai')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Selesai' ? 'bg-green-600 text-white' : 'bg-slate-100 hover:bg-green-100 text-green-600'}`}>SELESAI</button>
-                        <button onClick={() => handleUpdateStatus(selectedTrxDetail.id, 'Gagal')} className={`py-2 rounded-lg font-bold text-[10px] ${selectedTrxDetail.status === 'Gagal' ? 'bg-red-600 text-white' : 'bg-slate-100 hover:bg-red-100 text-red-600'}`}>GAGAL</button>
-                     </div>
-                     <button onClick={() => setSelectedTrxDetail(null)} className="mt-2 w-full py-3 bg-slate-100 dark:bg-white/10 rounded-xl font-bold">Tutup</button>
-                 </div>
-              </div>
-           </div>
-        )}
-
-        {isProductModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingProduct ? 'Edit Produk' : 'Tambah Produk'}</h3><div className="space-y-4"><input type="text" placeholder="Nama Produk" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})}/><input type="number" placeholder="Harga" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})}/><div className="flex gap-2"><select className="flex-1 bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.category} onChange={e => setProductForm({...productForm, category: e.target.value})}><option value="Game">Game</option><option value="Akun">Akun</option><option value="TopUp">TopUp</option><option value="Software">Software</option></select><input type="text" placeholder="Label (Optional)" className="flex-1 bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.label} onChange={e => setProductForm({...productForm, label: e.target.value})}/></div><div className="flex items-center justify-between bg-slate-100 dark:bg-black/50 p-3 rounded-xl"><span className="font-bold text-sm">Status Stok: {productForm.is_ready ? 'Ready' : 'Habis'}</span><button onClick={()=>setProductForm({...productForm, is_ready: !productForm.is_ready})} className={`p-1 rounded-full w-12 flex transition-all ${productForm.is_ready ? 'bg-green-500 justify-end' : 'bg-red-500 justify-start'}`}><div className="w-5 h-5 bg-white rounded-full shadow-sm"></div></button></div><input type="text" placeholder="Image URL (Optional)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={productForm.image_url} onChange={e => setProductForm({...productForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsProductModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveProduct} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
-
-        {isPaymentModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingPayment ? 'Edit Payment' : 'Tambah Payment'}</h3><div className="space-y-4"><input type="text" placeholder="Nama Bank/E-Wallet" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.name} onChange={e => setPaymentForm({...paymentForm, name: e.target.value})}/><input type="text" placeholder="No. Rekening / VA" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.va_number} onChange={e => setPaymentForm({...paymentForm, va_number: e.target.value})}/><input type="text" placeholder="Logo Image URL" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={paymentForm.image_url} onChange={e => setPaymentForm({...paymentForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsPaymentModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSavePayment} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
-
-        {isVoucherModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingVoucher ? 'Edit Voucher' : 'Tambah Voucher'}</h3><div className="space-y-4"><input type="text" placeholder="Kode Voucher (ex: DISKON10)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none uppercase" value={voucherForm.code} onChange={e => setVoucherForm({...voucherForm, code: e.target.value.toUpperCase()})}/><input type="number" placeholder="Jumlah Potongan (Rp)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={voucherForm.amount} onChange={e => setVoucherForm({...voucherForm, amount: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsVoucherModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveVoucher} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
-
-        {isContactModalOpen && (<div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn"><div className="bg-white dark:bg-zinc-900 w-full max-w-md rounded-3xl p-6 shadow-2xl"><h3 className="text-xl font-black mb-4">{editingContact ? 'Edit Kontak' : 'Tambah Kontak'}</h3><div className="space-y-4"><input type="text" placeholder="Nama Platform (WA, IG)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.platform_name} onChange={e => setContactForm({...contactForm, platform_name: e.target.value})}/><input type="text" placeholder="URL Link (https://...)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.url} onChange={e => setContactForm({...contactForm, url: e.target.value})}/><input type="text" placeholder="Icon URL (Optional)" className="w-full bg-slate-100 dark:bg-black/50 p-3 rounded-xl font-bold outline-none" value={contactForm.image_url} onChange={e => setContactForm({...contactForm, image_url: e.target.value})}/></div><div className="flex gap-3 mt-8"><button onClick={() => setIsContactModalOpen(false)} className="flex-1 py-3 font-bold bg-slate-100 dark:bg-zinc-800 rounded-xl">Batal</button><button onClick={handleSaveContact} className="flex-1 py-3 font-bold text-white bg-cyan-600 rounded-xl">Simpan</button></div></div></div>)}
-
-        {isContactOpen && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" onClick={(e) => e.target === e.currentTarget && setIsContactOpen(false)}>
-                <div className="bg-white dark:bg-zinc-900 text-slate-900 dark:text-slate-100 p-6 rounded-3xl max-w-sm w-full border border-white/10 shadow-2xl">
-                    <h3 className="font-bold text-xl mb-4 text-center">Hubungi Admin</h3>
-                    <div className="space-y-3">
-                        {contactMethods.filter(c => c.is_active).map(c => (
-                            <a key={c.id} href={c.url} target="_blank" className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-white/5 rounded-xl font-bold transition hover:bg-slate-200 dark:hover:bg-white/10">
-                                {c.image_url ? <img src={c.image_url} className="w-6 h-6"/> : <Mail size={20}/>} 
-                                {c.platform_name}
-                            </a>
-                        ))}
-                    </div>
-                </div>
+        {isMobileMenuOpen && (
+            <div className="bg-white border-t p-4 flex flex-col gap-2 md:hidden shadow-lg">
+                <button onClick={()=>{setActivePage('home'); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left rounded-xl hover:bg-slate-50 flex gap-3 text-slate-700"><ShoppingCart size={18}/> Store</button>
+                <button onClick={()=>{setActivePage('tracking'); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left rounded-xl hover:bg-slate-50 flex gap-3 text-slate-700"><Truck size={18}/> Cek Pesanan</button>
+                <button onClick={()=>{setActivePage('staff'); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left rounded-xl hover:bg-slate-50 flex gap-3 text-slate-700"><Lock size={18}/> Staff Area</button>
+                <button onClick={()=>{setIsContactModalOpen(true); setIsMobileMenuOpen(false)}} className="p-3 font-bold text-left rounded-xl hover:bg-slate-50 flex gap-3 text-slate-700"><MessageCircle size={18}/> Bantuan & Kontak</button>
             </div>
         )}
+      </nav>
+
+      {/* CONTENT */}
+      <main className="max-w-7xl mx-auto px-4 pt-24 md:pt-28 pb-10">
         
-        {/* --- MODAL CHECKOUT (UPDATED) --- */}
-        {selectedProduct && (
-          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-            <div className="bg-white dark:bg-zinc-900 w-full max-w-lg rounded-[2.5rem] border border-white/10 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
-               <div className="p-6 border-b border-slate-100 dark:border-white/5 flex justify-between items-center bg-white/50 dark:bg-black/20 backdrop-blur-md">
-                  <div><h3 className="font-black text-xl">Checkout</h3><p className="text-sm text-slate-500">{checkoutStep === 1 ? 'Data Diri' : 'Pembayaran'}</p></div>
-                  <button onClick={() => setSelectedProduct(null)} className="p-2 bg-slate-100 dark:bg-white/10 rounded-full"><X size={20}/></button>
-               </div>
-               <div className="p-8 overflow-y-auto custom-scrollbar">
-                  <div className="flex items-center gap-4 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl mb-6 border border-slate-100 dark:border-white/5">
-                      <div className="h-12 w-12 bg-cyan-100 dark:bg-cyan-900/30 rounded-xl flex items-center justify-center text-cyan-600 font-black">{selectedProduct.name.slice(0,1)}</div>
-                      <div><h4 className="font-bold">{selectedProduct.name}</h4><p className="text-sm text-slate-500">{selectedProduct.category} • Rp {selectedProduct.price.toLocaleString()}</p></div>
-                  </div>
-                  
-                  {checkoutStep === 1 ? (
-                    <div className="space-y-4 animate-slideIn">
-                       <div><label className="text-xs font-bold text-slate-500 ml-1">NAMA LENGKAP</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.name ? 'border-2 border-red-500' : ''}`} placeholder="Nama Anda" value={buyerForm.name} onChange={e=>setBuyerForm({...buyerForm, name: e.target.value})}/>{formErrors.name && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.name}</p>}</div>
-                       <div><label className="text-xs font-bold text-slate-500 ml-1">NO. HP / EMAIL</label><input className={`w-full bg-slate-100 dark:bg-black/50 p-4 rounded-xl font-bold mt-1 outline-none ${formErrors.email ? 'border-2 border-red-500' : ''}`} placeholder="08... atau email@..." value={buyerForm.email} onChange={e=>setBuyerForm({...buyerForm, email: e.target.value})}/>{formErrors.email && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.email}</p>}</div>
-                       
-                       {/* LOGIC FIELD BERDASARKAN KATEGORI */}
-                       {selectedProduct.category === 'Akun' && (<div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl border border-blue-100 dark:border-blue-500/30"><label className="text-xs font-bold text-blue-600 dark:text-blue-400 flex items-center gap-1"><Smartphone size={12}/> DEVICE MODEL (WAJIB)</label><input className="w-full bg-white dark:bg-black/50 p-3 rounded-lg font-bold mt-2 outline-none" placeholder="Contoh: Android, iPhone 11" value={buyerForm.device_model} onChange={e=>setBuyerForm({...buyerForm, device_model: e.target.value})}/>{formErrors.device_model && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.device_model}</p>}</div>)}
-
-                       {selectedProduct.category === 'TopUp' && (
-                          <div className="bg-purple-50 dark:bg-purple-900/20 p-4 rounded-xl border border-purple-100 dark:border-purple-500/30">
-                              <label className="text-xs font-bold text-purple-600 dark:text-purple-400 flex items-center gap-1"><Gamepad2 size={12}/> MASUKKAN ID GAME</label>
-                              <div className="flex gap-2 mt-2">
-                                  <input className="flex-[2] bg-white dark:bg-black/50 p-3 rounded-lg font-bold outline-none" placeholder="User ID" value={topUpForm.userId} onChange={e=>setTopUpForm({...topUpForm, userId: e.target.value})}/>
-                                  <input className="flex-1 bg-white dark:bg-black/50 p-3 rounded-lg font-bold outline-none" placeholder="Zone ID" value={topUpForm.zoneId} onChange={e=>setTopUpForm({...topUpForm, zoneId: e.target.value})}/>
-                              </div>
-                              <button onClick={checkGameNick} disabled={isCheckingNick || !topUpForm.userId} className="mt-3 w-full bg-purple-600 text-white py-2 rounded-lg font-bold text-xs hover:bg-purple-700 disabled:opacity-50">{isCheckingNick ? <Loader2 className="animate-spin mx-auto" size={16}/> : 'CEK ID'}</button>
-                              {accNick && <div className="mt-2 text-center font-black text-green-600 bg-green-100 py-1 rounded">Nick: {accNick}</div>}
-                              {formErrors.game_id && <p className="text-red-500 text-xs mt-1 font-bold">{formErrors.game_id}</p>}
-                          </div>
-                       )}
-
-                       <button onClick={handleNextStep} className="w-full bg-slate-900 dark:bg-white text-white dark:text-black font-bold py-4 rounded-xl mt-4 flex justify-center items-center gap-2">Lanjut Pembayaran <ChevronRight size={18}/></button>
+        {/* --- 1. HOME PAGE --- */}
+        {activePage === 'home' && (
+          <div>
+             {/* Hero Banner (No Animation) */}
+             <div className="bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-600 text-white rounded-3xl p-8 md:p-12 mb-8 relative overflow-hidden shadow-xl">
+                <div className="relative z-10 max-w-xl">
+                    <span className="bg-white/20 backdrop-blur-md border border-white/20 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider mb-4 inline-block">Trusted by 10k+ Gamers</span>
+                    <h1 className="text-3xl md:text-5xl font-black mb-6 leading-tight">Top Up Game <br/><span className="text-cyan-300">Termurah & Cepat</span></h1>
+                    <div className="relative group max-w-md bg-white rounded-2xl p-1 flex items-center shadow-lg">
+                        <div className="pl-3 pr-2 text-slate-400"><Search size={20}/></div>
+                        <input className="w-full py-3 pr-4 rounded-xl font-bold text-slate-800 outline-none placeholder:text-slate-400" placeholder="Cari Game..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}/>
                     </div>
-                  ) : (
-                    <div className="space-y-4 animate-slideIn">
-                       {/* VOUCHER FIELD */}
-                       <div className="flex gap-2 mb-4">
-                           <div className="relative flex-1">
-                               <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
-                               <input className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-black/50 rounded-xl font-bold text-sm uppercase outline-none border border-slate-200" placeholder="KODE VOUCHER" value={voucherCode} onChange={e=>setVoucherCode(e.target.value)}/>
-                           </div>
-                           <button onClick={handleApplyVoucher} disabled={voucherLoading} className="px-4 bg-slate-900 text-white rounded-xl font-bold text-xs">{voucherLoading ? '...' : 'APPLY'}</button>
-                       </div>
-                       
-                       <p className="text-xs font-bold text-slate-500 ml-1">PILIH METODE</p>
-                       <div className="space-y-3">
-                          {paymentMethods.filter(p=>p.is_active).length === 0 ? <p className="text-center text-sm text-slate-400 py-4">Belum ada metode pembayaran aktif.</p> : paymentMethods.filter(p=>p.is_active).map(m => (
-                             <div key={m.id} onClick={() => setSelectedPayment(m)} className={`p-4 rounded-xl border cursor-pointer transition-all ${selectedPayment?.id === m.id ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 ring-1 ring-cyan-500' : 'border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5'}`}>
-                                <div className="flex justify-between items-center">
-                                   <div className="flex items-center gap-3">
-                                      {m.image_url ? <img src={m.image_url} alt={m.name} className="w-8 h-8 object-contain rounded-full bg-white p-1"/> : <span className="font-bold">{m.name}</span>}
-                                      <span className="font-bold">{m.name}</span>
-                                   </div>
-                                   {selectedPayment?.id === m.id && <CheckCircle className="text-cyan-500" size={20}/>}
+                </div>
+                <Gamepad2 className="absolute -right-10 -bottom-10 text-white/10 w-72 h-72 rotate-12"/>
+             </div>
+
+             {/* Categories */}
+             <div className="flex gap-2 overflow-x-auto pb-4 mb-2 scrollbar-hide">
+                {['All', 'Game', 'TopUp', 'Akun', 'Software'].map(c => (
+                    <button key={c} onClick={()=>setSelectedCategory(c)} className={`px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${selectedCategory===c ? 'bg-slate-900 text-white shadow-md' : 'bg-white border border-slate-100 text-slate-500 hover:bg-slate-50'}`}>{c}</button>
+                ))}
+             </div>
+
+             {/* Products Grid */}
+             {isLoading ? (
+                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                     {[1,2,3,4,5].map(i => <div key={i} className="h-64 bg-white rounded-3xl border border-slate-100"/>)}
+                 </div>
+             ) : (
+                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+                    {products.filter(p => (selectedCategory === 'All' || p.category === selectedCategory) && p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
+                        <div key={p.id} onClick={()=>{if(p.is_ready){setSelectedProduct(p); setCheckoutStep(1);}}} className={`group bg-white p-3 rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer ${!p.is_ready && 'opacity-60 grayscale'}`}>
+                            <div className="aspect-square bg-slate-50 rounded-2xl mb-3 overflow-hidden relative">
+                                {p.image_url ? <img src={p.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform"/> : <div className="w-full h-full flex items-center justify-center font-black text-slate-200 text-4xl">{p.name[0]}</div>}
+                                {!p.is_ready && <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white font-black text-xs rotate-12 backdrop-blur-sm rounded-xl m-2">STOK HABIS</div>}
+                                {p.label && <div className="absolute top-3 left-3 bg-orange-500 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-sm uppercase">{p.label}</div>}
+                            </div>
+                            <div className="px-1">
+                                <h3 className="font-bold text-slate-800 text-sm line-clamp-1 mb-1">{p.name}</h3>
+                                <div className="flex justify-between items-end">
+                                    <div>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase">{p.category}</p>
+                                        <span className="font-black text-slate-900 text-lg">Rp {p.price.toLocaleString()}</span>
+                                    </div>
+                                    <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-all"><ShoppingCart size={14}/></div>
                                 </div>
-                                {selectedPayment?.id === m.id && (<div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/10 flex justify-between items-center"><code className="font-mono font-bold">{m.va_number}</code><button onClick={(e)=>{e.stopPropagation(); navigator.clipboard.writeText(m.va_number); showToast("Disalin!", "success")}} className="p-1.5 bg-cyan-100 text-cyan-700 rounded-lg"><Copy size={14}/></button></div>)}
-                             </div>
-                          ))}
-                       </div>
-
-                       {/* TOTAL PRICE SUMMARY */}
-                       <div className="bg-slate-50 dark:bg-black/40 p-4 rounded-xl space-y-2">
-                           <div className="flex justify-between text-sm"><span>Harga Awal</span><span>Rp {selectedProduct.price.toLocaleString()}</span></div>
-                           {appliedVoucher && <div className="flex justify-between text-sm text-green-500"><span>Diskon ({appliedVoucher.code})</span><span>- Rp {appliedVoucher.amount.toLocaleString()}</span></div>}
-                           <div className="flex justify-between font-black text-lg pt-2 border-t border-slate-200"><span>Total Bayar</span><span>Rp {finalPrice.toLocaleString()}</span></div>
-                       </div>
-
-                       <div className="flex gap-3 mt-6"><button onClick={() => setCheckoutStep(1)} className="flex-1 py-4 bg-slate-100 dark:bg-zinc-800 rounded-xl font-bold">Kembali</button><button disabled={!selectedPayment || isSubmitting} onClick={handleCheckoutSubmit} className="flex-[2] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl font-bold disabled:opacity-50">Konfirmasi Order</button></div>
-                    </div>
-                  )}
-               </div>
-            </div>
+                            </div>
+                        </div>
+                    ))}
+                 </div>
+             )}
           </div>
         )}
 
-        <style dangerouslySetInnerHTML={{__html: `
-          @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-          @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-          .animate-fadeIn { animation: fadeIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-          .animate-slideIn { animation: slideIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
-          .scrollbar-hide::-webkit-scrollbar { display: none; }
-        `}} />
+        {/* --- 2. TRACKING PAGE --- */}
+        {activePage === 'tracking' && (
+            <div className="max-w-xl mx-auto mt-10">
+                <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center">
+                    <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6"><Truck size={32}/></div>
+                    <h2 className="text-3xl font-black text-slate-800 mb-2">Lacak Pesanan</h2>
+                    <p className="text-slate-500 mb-8 font-medium">Masukkan ID Transaksi untuk melihat status terkini.</p>
+                    
+                    <form onSubmit={handleTrackOrder} className="flex gap-2 mb-8">
+                        <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 ring-indigo-500" placeholder="Contoh: 843912..." value={trackId} onChange={e=>setTrackId(e.target.value)}/>
+                        <button disabled={isTrackLoading} className="bg-slate-900 text-white px-6 rounded-2xl font-bold">{isTrackLoading ? <Loader2 className="animate-spin"/> : 'Cek'}</button>
+                    </form>
+
+                    {trackResult && (
+                        <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 text-left relative overflow-hidden">
+                            <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 to-cyan-500"></div>
+                            <div className="flex justify-between items-start mb-4">
+                                <div><p className="text-[10px] text-slate-400 font-bold uppercase">ID Transaksi</p><p className="font-mono font-bold text-xl text-slate-800">#{trackResult.id.slice(0,8)}</p></div>
+                                <span className={`px-3 py-1 rounded-lg text-xs font-black uppercase ${trackResult.status==='Selesai'?'bg-green-100 text-green-700':trackResult.status==='Pending'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-700'}`}>{trackResult.status}</span>
+                            </div>
+                            <div className="space-y-2 text-sm border-t border-slate-200 pt-4">
+                                <div className="flex justify-between"><span>Produk</span><span className="font-bold">{trackResult.product_name}</span></div>
+                                <div className="flex justify-between"><span>Total</span><span className="font-black text-indigo-600">Rp {trackResult.price.toLocaleString()}</span></div>
+                                <div className="text-center text-xs text-slate-400 pt-2">Dibuat pada {new Date(trackResult.created_at).toLocaleString()}</div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* --- 3. STAFF PAGE --- */}
+        {activePage === 'staff' && (
+            <div>
+                {!isStaffLoggedIn ? (
+                    <div className="max-w-md mx-auto bg-white p-10 rounded-[2.5rem] shadow-xl border border-slate-100 text-center mt-10">
+                        <div className="w-16 h-16 bg-slate-100 text-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-6"><Lock size={32}/></div>
+                        <h2 className="text-3xl font-black mb-2 text-slate-800">Staff Portal</h2>
+                        <form onSubmit={handleLogin} className="space-y-4 mt-8">
+                            <input type="email" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-slate-900" placeholder="Email Address" value={loginForm.email} onChange={e=>setLoginForm({...loginForm, email: e.target.value})} required/>
+                            <input type="password" className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-slate-900" placeholder="Password" value={loginForm.password} onChange={e=>setLoginForm({...loginForm, password: e.target.value})} required/>
+                            <button disabled={isAuthLoading} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all">{isAuthLoading ? <Loader2 className="animate-spin mx-auto"/> : 'Access Dashboard'}</button>
+                        </form>
+                    </div>
+                ) : (
+                    <div>
+                        <div className="flex flex-wrap items-center justify-between gap-4 mb-8 bg-white p-3 rounded-2xl shadow-sm border border-slate-200">
+                             <div className="flex gap-2 overflow-x-auto p-1">
+                                 {[{id:'dash', l:'Dashboard', i:Monitor}, {id:'trx', l:'Transaksi', i:FileSpreadsheet}, {id:'prod', l:'Produk', i:Gamepad2}, {id:'setting', l:'Setting', i:Lock}].map(m => (
+                                     <button key={m.id} onClick={()=>setAdminTab(m.id as any)} className={`px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 transition-all ${adminTab===m.id ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}><m.i size={16}/> {m.l}</button>
+                                 ))}
+                             </div>
+                             <button onClick={async()=>{await supabase.auth.signOut(); setIsStaffLoggedIn(false)}} className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl text-xs font-bold hover:bg-red-100 flex items-center gap-2 mr-1"><Power size={14}/> Logout</button>
+                        </div>
+
+                        {/* DASHBOARD */}
+                        {adminTab === 'dash' && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-8 rounded-[2rem] shadow-lg text-white relative overflow-hidden">
+                                    <p className="text-indigo-100 font-bold text-xs uppercase tracking-wider mb-1">Total Pendapatan</p>
+                                    <h3 className="text-4xl font-black">Rp {transactions.reduce((a,b)=>a+(b.price||0),0).toLocaleString()}</h3>
+                                    <Wallet className="absolute -bottom-4 -right-4 text-white/20 w-32 h-32 rotate-12"/>
+                                </div>
+                                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-2 h-full bg-green-500"></div>
+                                    <p className="text-slate-400 font-bold text-xs uppercase tracking-wider mb-1">Total Pesanan</p>
+                                    <h3 className="text-4xl font-black text-slate-800">{transactions.length}</h3>
+                                </div>
+                                <div className="bg-white p-8 rounded-[2rem] border border-slate-100 shadow-sm relative overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-2 h-full bg-orange-500"></div>
+                                    <p className="text-slate-400 font-bold text-xs uppercase tracking-wider mb-1">Produk Aktif</p>
+                                    <h3 className="text-4xl font-black text-slate-800">{products.length}</h3>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* TRANSACTION TABLE */}
+                        {adminTab === 'trx' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                                    <h3 className="font-black text-lg text-slate-800 flex items-center gap-2">Data Transaksi {selectedIds.length > 0 && <span className="bg-slate-200 px-2 py-1 rounded text-xs">{selectedIds.length} Selected</span>}</h3>
+                                    <div className="flex gap-2">
+                                        {selectedIds.length > 0 && <button onClick={handleBulkDelete} className="p-2 bg-red-100 text-red-600 rounded-xl hover:bg-red-200"><Trash2 size={18}/></button>}
+                                        <button onClick={() => refreshAdminData()} className="p-2 bg-white border border-slate-200 rounded-xl hover:rotate-180 transition shadow-sm text-slate-600"><RefreshCw size={18}/></button>
+                                    </div>
+                                </div>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-slate-50 text-slate-500 font-bold text-xs uppercase tracking-wide">
+                                            <tr>
+                                                <th className="p-4 w-4"><input type="checkbox" onChange={(e)=>{if(e.target.checked) setSelectedIds(transactions.map(t=>t.id)); else setSelectedIds([]);}}/></th>
+                                                <th className="p-4">ID/Tanggal</th>
+                                                <th className="p-4">Produk</th>
+                                                <th className="p-4">Pembeli</th>
+                                                <th className="p-4">Status</th>
+                                                <th className="p-4 text-right">Aksi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {transactions.map(t => (
+                                                <tr key={t.id} className="hover:bg-slate-50 transition-colors">
+                                                    <td className="p-4"><input type="checkbox" checked={selectedIds.includes(t.id)} onChange={(e)=>{if(e.target.checked) setSelectedIds([...selectedIds, t.id]); else setSelectedIds(selectedIds.filter(id=>id!==t.id));}}/></td>
+                                                    <td className="p-4">
+                                                        <div className="font-bold font-mono text-slate-800">#{t.id.slice(0,6)}</div>
+                                                        <div className="text-[10px] text-slate-400 mt-1">{new Date(t.created_at).toLocaleDateString()}</div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="font-bold text-slate-800 text-sm">{t.product_name}</div>
+                                                        <div className="text-[10px] font-black text-indigo-600 mt-1">Rp {t.price.toLocaleString()}</div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="font-bold text-slate-800 text-sm">{t.buyer_name}</div>
+                                                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1"><Smartphone size={10}/> {t.device_model||'-'}</div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <select value={t.status} onChange={(e) => handleStatusChange(t.id, e.target.value)} className={`text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border-none outline-none cursor-pointer ring-1 ring-inset ${t.status==='Selesai'?'bg-green-50 text-green-700 ring-green-200':t.status==='Pending'?'bg-yellow-50 text-yellow-700 ring-yellow-200':'bg-red-50 text-red-700 ring-red-200'}`}>
+                                                            <option value="Pending">Pending</option><option value="Proses">Proses</option><option value="Selesai">Selesai</option><option value="Gagal">Gagal</option>
+                                                        </select>
+                                                    </td>
+                                                    <td className="p-4 text-right">
+                                                        <button onClick={()=>{setDetailTrx(t); setModalType('invoice');}} className="p-2 bg-blue-50 text-blue-600 rounded-lg mr-2 hover:bg-blue-100"><Eye size={16}/></button>
+                                                        <button onClick={()=>handleDelete('transactions', t.id)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><Trash2 size={16}/></button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* PRODUCT TAB */}
+                        {adminTab === 'prod' && (
+                            <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="font-black text-lg">Manajemen Produk</h3>
+                                    <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('product');}} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-xs font-bold shadow-lg flex items-center gap-2 hover:bg-slate-800 transition">+ Tambah</button>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {products.map(p => (
+                                        <div key={p.id} className="flex gap-4 p-4 border border-slate-100 rounded-2xl items-center relative group bg-white hover:shadow-md transition-all">
+                                            <div className="w-14 h-14 bg-slate-50 rounded-xl overflow-hidden flex-shrink-0 border border-slate-200">{p.image_url && <img src={p.image_url} className="w-full h-full object-cover"/>}</div>
+                                            <div className="flex-1 min-w-0">
+                                                <h4 className="font-bold text-sm truncate text-slate-800">{p.name}</h4>
+                                                <p className="text-xs text-slate-500 font-medium mt-0.5">Rp {p.price.toLocaleString()}</p>
+                                                <span className={`text-[9px] font-black uppercase mt-1 block ${p.is_ready ? 'text-green-500':'text-red-500'}`}>{p.is_ready ? 'Ready Stock':'Stok Habis'}</span>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <button onClick={()=>{setEditingItem(p); setFormData(p); setModalType('product');}} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Edit3 size={14}/></button>
+                                                <button onClick={()=>handleDelete('products', p.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg"><Trash2 size={14}/></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* SETTING TAB */}
+                        {adminTab === 'setting' && (
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                 {/* Payment */}
+                                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                     <div className="flex justify-between mb-6 items-center"><h4 className="font-bold flex items-center gap-2"><CreditCard size={18}/> Metode Pembayaran</h4><button onClick={()=>{setEditingItem(null); setFormData({is_active:true}); setModalType('payment');}} className="text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg font-bold">+ Add</button></div>
+                                     <div className="space-y-3">
+                                         {paymentMethods.map(pm => (
+                                             <div key={pm.id} className={`flex justify-between items-center p-4 border rounded-2xl transition-all ${pm.is_active ? 'bg-white border-slate-200' : 'bg-slate-50 border-slate-100 opacity-60'}`}>
+                                                 <div><div className="font-bold text-sm text-slate-800">{pm.name}</div><div className="text-xs text-slate-500 font-mono mt-0.5">{pm.va_number}</div></div>
+                                                 <div className="flex items-center gap-3">
+                                                     <button onClick={()=>handleToggleActive('payment_methods', pm.id, pm.is_active)} className={`w-9 h-5 rounded-full relative transition-colors ${pm.is_active?'bg-green-500':'bg-slate-300'}`}><div className={`w-3.5 h-3.5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${pm.is_active?'left-5':'left-0.5'}`}/></button>
+                                                     <button onClick={()=>{setEditingItem(pm); setFormData(pm); setModalType('payment');}} className="text-blue-600"><Edit3 size={16}/></button>
+                                                     <button onClick={()=>handleDelete('payment_methods', pm.id)} className="text-red-600"><Trash2 size={16}/></button>
+                                                 </div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                 </div>
+                                 {/* Contact */}
+                                 <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                                     <div className="flex justify-between mb-6 items-center"><h4 className="font-bold flex items-center gap-2"><Globe size={18}/> Kontak & Sosmed</h4><button onClick={()=>{setEditingItem(null); setFormData({is_active:true}); setModalType('contact');}} className="text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg font-bold">+ Add</button></div>
+                                     <div className="space-y-3">
+                                         {contactMethods.map(cm => (
+                                             <div key={cm.id} className="flex justify-between items-center p-4 border border-slate-200 rounded-2xl bg-white">
+                                                 <div className="flex items-center gap-3 overflow-hidden">
+                                                     <div className="w-8 h-8 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100">{cm.image_url ? <img src={cm.image_url} className="w-5"/>:<Globe size={16}/>}</div>
+                                                     <div className="truncate"><div className="font-bold text-sm text-slate-800">{cm.platform_name}</div><div className="text-[10px] text-slate-400 truncate max-w-[150px]">{cm.url}</div></div>
+                                                 </div>
+                                                 <div className="flex gap-2"><button onClick={()=>{setEditingItem(cm); setFormData(cm); setModalType('contact');}} className="p-1.5 bg-blue-50 text-blue-600 rounded-lg"><Edit3 size={14}/></button><button onClick={()=>handleDelete('contact_methods', cm.id)} className="p-1.5 bg-red-50 text-red-600 rounded-lg"><Trash2 size={14}/></button></div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                 </div>
+                             </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        )}
+      </main>
+
+      {/* --- MODALS --- */}
+      
+      {/* CONTACT/HELP MODAL (Live Data from Supabase) */}
+      {isContactModalOpen && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl relative">
+                  <button onClick={()=>setIsContactModalOpen(false)} className="absolute top-5 right-5 p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition"><X size={20} className="text-slate-500"/></button>
+                  <div className="text-center mb-8">
+                      <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-indigo-600"><MessageCircle size={32}/></div>
+                      <h3 className="font-black text-2xl text-slate-800">Pusat Bantuan</h3>
+                      <p className="text-slate-500 text-sm mt-1">Hubungi kami melalui media sosial berikut</p>
+                  </div>
+                  <div className="space-y-3">
+                      {contactMethods.length > 0 ? contactMethods.map(cm => (
+                          <a key={cm.id} href={cm.url} target="_blank" className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group">
+                              <div className="w-10 h-10 bg-white shadow-sm rounded-full flex items-center justify-center border border-slate-100 group-hover:scale-110 transition-transform">
+                                  {cm.image_url ? <img src={cm.image_url} className="w-5 h-5 object-contain"/> : <Globe size={20} className="text-slate-400"/>}
+                              </div>
+                              <span className="font-bold text-slate-700 group-hover:text-indigo-700">{cm.platform_name}</span>
+                              <ChevronRight className="ml-auto text-slate-300 group-hover:text-indigo-400" size={18}/>
+                          </a>
+                      )) : <div className="text-center text-slate-400 py-4">Belum ada kontak tersedia.</div>}
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* CHECKOUT */}
+      {selectedProduct && (
+          <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/60 p-0 md:p-4 backdrop-blur-sm">
+              <div className="bg-white w-full md:max-w-md rounded-t-[2rem] md:rounded-[2.5rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center gap-4 mb-8 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      <div className="w-16 h-16 bg-white rounded-xl overflow-hidden border border-slate-200 shadow-sm flex-shrink-0">{selectedProduct.image_url && <img src={selectedProduct.image_url} className="w-full h-full object-cover"/>}</div>
+                      <div><h3 className="font-black text-lg text-slate-900 leading-tight">{selectedProduct.name}</h3><p className="text-indigo-600 font-bold text-base mt-1">Rp {selectedProduct.price.toLocaleString()}</p></div>
+                  </div>
+
+                  {checkoutStep === 1 ? (
+                      <div className="space-y-5">
+                          <div><label className="text-xs font-bold text-slate-400 uppercase ml-2 mb-1 block">Info Pembeli</label><input className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 ring-indigo-500 transition shadow-sm" placeholder="Nama Lengkap" value={buyerForm.name} onChange={e=>setBuyerForm({...buyerForm, name: e.target.value})}/></div>
+                          <div><input className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 ring-indigo-500 transition shadow-sm" placeholder="Nomor WhatsApp / Email" value={buyerForm.email} onChange={e=>setBuyerForm({...buyerForm, email: e.target.value})}/></div>
+                          {selectedProduct.category === 'TopUp' ? (
+                              <div className="flex gap-3">
+                                  <input className="flex-1 p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 ring-indigo-500 shadow-sm" placeholder="User ID" value={topUpForm.userId} onChange={e=>setTopUpForm({...topUpForm, userId: e.target.value})}/>
+                                  <input className="w-28 p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 ring-indigo-500 shadow-sm" placeholder="Zone ID" value={topUpForm.zoneId} onChange={e=>setTopUpForm({...topUpForm, zoneId: e.target.value})}/>
+                              </div>
+                          ) : (
+                              selectedProduct.category === 'Akun' && <input className="w-full p-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none focus:ring-2 ring-indigo-500 shadow-sm" placeholder="Jenis Device (Android/iOS)" value={buyerForm.device_model} onChange={e=>setBuyerForm({...buyerForm, device_model: e.target.value})}/>
+                          )}
+                          <div className="pt-2 flex gap-3">
+                              <button onClick={()=>setSelectedProduct(null)} className="flex-1 py-4 text-slate-500 font-bold text-sm hover:bg-slate-50 rounded-2xl transition">Batal</button>
+                              <button onClick={()=>setCheckoutStep(2)} className="flex-[2] py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg hover:scale-[1.02] transition-transform">Lanjut Pembayaran</button>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="space-y-6">
+                          <div className="flex gap-2"><input className="flex-1 p-4 bg-white border border-slate-200 rounded-2xl font-bold text-sm uppercase outline-none focus:border-indigo-500 shadow-sm" placeholder="KODE VOUCHER" value={voucherCode} onChange={e=>setVoucherCode(e.target.value)}/><button onClick={()=>{const v=vouchers.find(x=>x.code===voucherCode&&x.is_active); if(v){setAppliedVoucher(v); showToast("Voucher OK","success");}else showToast("Voucher Salah","error")}} className="bg-indigo-600 text-white px-6 rounded-2xl font-bold text-xs shadow-md">APPLY</button></div>
+                          
+                          <div>
+                              <label className="text-xs font-bold text-slate-400 uppercase ml-2 mb-2 block">Pilih Metode</label>
+                              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                                  {paymentMethods.map(pm => (
+                                      <div key={pm.id} onClick={()=>setSelectedPayment(pm)} className={`p-4 border rounded-2xl cursor-pointer transition-all duration-200 ${selectedPayment?.id===pm.id ? 'border-indigo-500 bg-indigo-50/50 ring-1 ring-indigo-500 shadow-md' : 'border-slate-200 hover:bg-slate-50'}`}>
+                                          <div className="flex justify-between items-center"><span className="font-bold text-sm text-slate-800">{pm.name}</span>{selectedPayment?.id===pm.id && <CheckCircle size={18} className="text-indigo-600"/>}</div>
+                                          {selectedPayment?.id === pm.id && <div className="mt-3 pt-3 border-t border-indigo-100 flex justify-between items-center"><code className="font-mono font-bold text-lg text-slate-800">{pm.va_number}</code><button onClick={(e)=>{e.stopPropagation(); navigator.clipboard.writeText(pm.va_number); showToast("Tersalin","success")}} className="p-1.5 bg-white text-indigo-600 rounded-lg shadow-sm border border-indigo-100"><Copy size={14}/></button></div>}
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+
+                          <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                               <div className="flex justify-between text-sm mb-2 text-slate-500"><span>Harga</span><span>Rp {selectedProduct.price.toLocaleString()}</span></div>
+                               {appliedVoucher && <div className="flex justify-between text-sm text-green-600 mb-2 font-bold"><span>Diskon</span><span>- Rp {appliedVoucher.amount.toLocaleString()}</span></div>}
+                               <div className="flex justify-between text-xl font-black border-t border-slate-200 pt-3 mt-1"><span>Total</span><span className="text-indigo-600">Rp {(selectedProduct.price - (appliedVoucher?.amount||0)).toLocaleString()}</span></div>
+                          </div>
+
+                          <div className="flex gap-3 pt-2">
+                              <button onClick={()=>setCheckoutStep(1)} className="flex-1 py-4 bg-white border border-slate-200 font-bold rounded-2xl text-sm hover:bg-slate-50 text-slate-600 transition">Kembali</button>
+                              <button disabled={isSubmitting} onClick={handleCheckout} className="flex-[2] py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-2xl shadow-lg hover:scale-[1.02] transition-transform">{isSubmitting ? 'Memproses...' : 'Konfirmasi & Bayar'}</button>
+                          </div>
+                      </div>
+                  )}
+              </div>
+          </div>
+      )}
+
+      {/* CRUD MODAL */}
+      {modalType && modalType !== 'invoice' && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+              <div className="bg-white w-full max-w-md rounded-[2rem] p-8 shadow-2xl">
+                  <h3 className="font-black text-2xl mb-6 capitalize text-slate-800">{editingItem ? 'Edit' : 'Tambah'} {modalType}</h3>
+                  <div className="space-y-4 mb-8">
+                      {modalType === 'product' && (
+                          <>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-indigo-500" placeholder="Nama Produk" value={formData.name||''} onChange={e=>setFormData({...formData, name: e.target.value})}/>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-indigo-500" type="number" placeholder="Harga" value={formData.price||''} onChange={e=>setFormData({...formData, price: e.target.value})}/>
+                              <select className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category: e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Software</option></select>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-indigo-500" placeholder="Label (New, Promo)" value={formData.label||''} onChange={e=>setFormData({...formData, label: e.target.value})}/>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none focus:ring-2 ring-indigo-500" placeholder="Image URL" value={formData.image_url||''} onChange={e=>setFormData({...formData, image_url: e.target.value})}/>
+                              <div className="flex items-center gap-3 p-2"><div onClick={()=>setFormData({...formData, is_ready: !formData.is_ready})} className={`w-12 h-7 rounded-full relative cursor-pointer transition-colors ${formData.is_ready!==false ? 'bg-green-500' : 'bg-slate-300'}`}><div className={`absolute top-1 w-5 h-5 bg-white rounded-full transition-all shadow-sm ${formData.is_ready!==false ? 'left-6' : 'left-1'}`}/></div> <label className="font-bold text-sm text-slate-700">Stok Ready</label></div>
+                              <button onClick={()=>handleSaveItem('products', formData)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg mt-2">Simpan Produk</button>
+                          </>
+                      )}
+                      {modalType === 'payment' && (
+                          <>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Nama Bank/E-Wallet" value={formData.name||''} onChange={e=>setFormData({...formData, name: e.target.value})}/>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Nomor VA / Rekening" value={formData.va_number||''} onChange={e=>setFormData({...formData, va_number: e.target.value})}/>
+                              <button onClick={()=>handleSaveItem('payment_methods', formData)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg mt-2">Simpan Metode</button>
+                          </>
+                      )}
+                      {modalType === 'contact' && (
+                          <>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Nama Platform" value={formData.platform_name||''} onChange={e=>setFormData({...formData, platform_name: e.target.value})}/>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="URL Link" value={formData.url||''} onChange={e=>setFormData({...formData, url: e.target.value})}/>
+                              <input className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold outline-none" placeholder="Icon URL (Optional)" value={formData.image_url||''} onChange={e=>setFormData({...formData, image_url: e.target.value})}/>
+                              <button onClick={()=>handleSaveItem('contact_methods', formData)} className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl shadow-lg mt-2">Simpan Kontak</button>
+                          </>
+                      )}
+                  </div>
+                  <button onClick={()=>{setModalType(null); setEditingItem(null);}} className="w-full py-3 text-slate-400 font-bold hover:text-slate-600">Batalkan</button>
+              </div>
+          </div>
+      )}
+
+      {/* PREMIUM INVOICE MODAL (REALISTIC THERMAL RECEIPT) */}
+      {modalType === 'invoice' && detailTrx && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+               <div className="bg-white w-full max-w-sm shadow-2xl relative overflow-hidden flex flex-col" style={{boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'}}>
+                   
+                   {/* CONTENT */}
+                   <div ref={invoiceRef} className="p-8 bg-white text-slate-800 font-mono text-xs leading-relaxed relative">
+                       {/* Header Logo */}
+                       <div className="text-center mb-6 pb-4 border-b-2 border-dashed border-slate-300">
+                           <div className="flex justify-center mb-3">
+                               <img src={STORE_LOGO} className="w-16 h-16 rounded-full border-2 border-slate-800 grayscale"/>
+                           </div>
+                           <h2 className="text-xl font-black uppercase tracking-widest mb-1 text-slate-900">STRUK TRANSAKSI</h2>
+                           <p className="font-bold text-sm">WuregStore Official</p>
+                           <p className="text-[10px] text-slate-500">{new Date(detailTrx.created_at).toLocaleString()}</p>
+                       </div>
+                       
+                       {/* Detail */}
+                       <div className="space-y-2 mb-4">
+                           <div className="flex justify-between"><span>ID TRANSAKSI</span><span className="font-bold">#{detailTrx.id.slice(0,8).toUpperCase()}</span></div>
+                           <div className="flex justify-between"><span>PEMBELI</span><span className="font-bold uppercase">{detailTrx.buyer_name}</span></div>
+                           <div className="flex justify-between"><span>PEMBAYARAN</span><span className="font-bold uppercase">{detailTrx.payment_method}</span></div>
+                           <div className="flex justify-between"><span>STATUS</span><span className="font-bold uppercase border border-slate-800 px-1">{detailTrx.status}</span></div>
+                       </div>
+
+                       {/* Item */}
+                       <div className="border-t-2 border-dashed border-slate-300 py-4 mb-4">
+                           <div className="flex justify-between font-bold text-sm mb-1">
+                               <span>{detailTrx.product_name.toUpperCase()}</span>
+                           </div>
+                           <div className="flex justify-between">
+                               <span>Harga Satuan</span>
+                               <span>Rp {detailTrx.price.toLocaleString()}</span>
+                           </div>
+                           {detailTrx.device_model && <div className="mt-1">Info: {detailTrx.device_model}</div>}
+                       </div>
+
+                       {/* Total */}
+                       <div className="border-t-2 border-slate-900 pt-3 flex justify-between text-xl font-black">
+                           <span>TOTAL</span>
+                           <span>Rp {detailTrx.price.toLocaleString()}</span>
+                       </div>
+
+                       {/* Footer */}
+                       <div className="mt-8 text-center">
+                           <p className="font-bold">*** TERIMA KASIH ***</p>
+                           <p className="mt-1">Simpan struk ini sebagai bukti pembayaran yang sah.</p>
+                       </div>
+                       
+                       {/* Jagged Edge Bottom Effect */}
+                       <div className="absolute bottom-0 left-0 right-0 h-4 bg-white" 
+                            style={{
+                                maskImage: 'linear-gradient(45deg, transparent 50%, black 50%), linear-gradient(-45deg, transparent 50%, black 50%)',
+                                maskSize: '20px 20px',
+                                maskRepeat: 'repeat-x',
+                                maskPosition: 'bottom',
+                                WebkitMaskImage: 'linear-gradient(45deg, transparent 50%, black 50%), linear-gradient(-45deg, transparent 50%, black 50%)',
+                                WebkitMaskSize: '16px 16px',
+                                WebkitMaskRepeat: 'repeat-x',
+                                WebkitMaskPosition: 'bottom'
+                            }}>
+                       </div>
+                   </div>
+
+                   {/* Action Buttons */}
+                   <div className="p-4 bg-slate-100 flex gap-3 border-t border-slate-200">
+                       <button onClick={()=>setModalType(null)} className="flex-1 py-3 text-slate-600 font-bold hover:bg-white border rounded-lg transition">Tutup</button>
+                       <button onClick={async()=>{
+                           if(!invoiceRef.current) return;
+                           const canvas = await html2canvas(invoiceRef.current);
+                           const link = document.createElement('a');
+                           link.download = `Struk-${detailTrx.id}.jpg`;
+                           link.href = canvas.toDataURL();
+                           link.click();
+                       }} className="flex-1 py-3 bg-slate-900 text-white font-bold rounded-lg flex items-center justify-center gap-2 hover:bg-slate-800 transition shadow-lg"><Download size={16}/> Simpan</button>
+                   </div>
+               </div>
+          </div>
+      )}
     </div>
   );
 }
