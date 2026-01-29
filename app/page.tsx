@@ -9,6 +9,7 @@ import {
   Home, User, X, Zap, Settings, ToggleLeft, ToggleRight, Printer, 
   Image as ImageIcon, Wallet, MinusCircle, PlusCircle, History, Receipt, Lock, ExternalLink
 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 
 // --- SETUP SUPABASE ---
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
@@ -17,7 +18,6 @@ const ADMIN_PHONE_FALLBACK = "6281528483575";
 const STORE_LOGO = "https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383";
 const CASH_OUT_PIN = "31082007"; // PIN RAHASIA
 
-import { createClient } from '@supabase/supabase-js';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // --- COMPONENTS ---
@@ -127,7 +127,7 @@ export default function WuregStore() {
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [adminTab, setAdminTab] = useState<'dash' | 'trx' | 'prod' | 'setting' | 'expense'>('dash'); // Removed 'cashout' from adminTab
+  const [adminTab, setAdminTab] = useState<'dash' | 'trx' | 'prod' | 'setting' | 'expense'>('dash'); 
   const [settingSubTab, setSettingSubTab] = useState<'payment' | 'voucher' | 'social'>('payment');
   
   // Cash Out Specifics
@@ -155,12 +155,11 @@ export default function WuregStore() {
 
   const fetchPublicData = async () => {
     setIsLoading(true);
-    // Added shop_balance to public fetch (assuming public RLS is enabled as per instructions)
     const [p, pm, cm, bal] = await Promise.all([
       supabase.from('products').select('*').order('created_at', {ascending: false}),
       supabase.from('payment_methods').select('*').eq('is_active', true).order('created_at', {ascending: true}),
       supabase.from('contact_methods').select('*').eq('is_active', true),
-      supabase.from('shop_balance').select('*').eq('id', 1).single() // Fetch Balance Publicly
+      supabase.from('shop_balance').select('*').eq('id', 1).single() 
     ]);
     if(p.data) setProducts(p.data);
     if(pm.data) setPaymentMethods(pm.data);
@@ -199,7 +198,6 @@ export default function WuregStore() {
   }, [isStaffLoggedIn]);
 
   // --- Handlers ---
-
   const handleLogin = async (e: React.FormEvent) => {
       e.preventDefault();
       setIsAuthLoading(true);
@@ -210,7 +208,6 @@ export default function WuregStore() {
   };
 
   // --- CASH OUT LOGIC ---
-  
   const handleAddCashOutItem = () => {
       setCashOutForm({
           ...cashOutForm,
@@ -233,7 +230,6 @@ export default function WuregStore() {
       return cashOutForm.items.reduce((acc, item) => acc + (Number(item.price) * Number(item.qty)), 0);
   };
 
-  // Called when PIN is verified
   const processFinalCashOut = async () => {
       const total = calculateTotalExpense();
       if(total <= 0) return showToast("Total tidak boleh 0", "error");
@@ -241,12 +237,9 @@ export default function WuregStore() {
 
       setIsSubmitting(true);
       try {
-          // 1. Kurangi Saldo
           const newBalance = shopBalance - total;
           const { error: balError } = await supabase.from('shop_balance').update({ current_balance: newBalance }).eq('id', 1);
           if(balError) throw balError;
-
-          // 2. Simpan Expense
           const { error: expError } = await supabase.from('expenses').insert([{
               tag: cashOutForm.tag,
               items: cashOutForm.items,
@@ -256,8 +249,8 @@ export default function WuregStore() {
 
           showToast("Cash Out Berhasil!", "success");
           setCashOutForm({ tag: 'Anwaha Mart', items: [{ name: '', price: 0, qty: 1 }] });
-          fetchPublicData(); // Update balance immediately
-          setIsPinModalOpen(false); // Close PIN Modal
+          fetchPublicData(); 
+          setIsPinModalOpen(false); 
           setCashOutPinInput('');
       } catch(err: any) {
           showToast(err.message, "error");
@@ -275,8 +268,7 @@ export default function WuregStore() {
       }
   };
 
-  // --- CRUD & PDF Handlers ---
-
+  // --- CRUD & Handlers ---
   const handleSaveItem = async (table: string, payload: any) => {
     try {
       const res = editingItem?.id 
@@ -718,32 +710,119 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* Other Modals (Support, Checkout, CRUD, Invoice, Expense Detail) */}
-      {isContactModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-              <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative">
-                  <button onClick={()=>setIsContactModalOpen(false)} className="absolute top-4 right-4 p-2 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200"><X size={18}/></button>
-                  <div className="text-center mb-6 mt-2">
-                      <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3"><MessageCircle size={28}/></div>
-                      <h3 className="font-bold text-xl text-zinc-900">Hubungi Kami</h3>
-                      <p className="text-zinc-500 text-xs">Pilih metode bantuan dibawah ini</p>
+      {/* 2. CHECKOUT MODAL (PRODUCT) */}
+      {selectedProduct && (
+          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-md p-0 md:p-4 animate-in fade-in">
+              <div className="bg-white w-full md:max-w-md rounded-t-[32px] md:rounded-[32px] p-6 md:p-8 shadow-2xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-10">
+                  <div className="flex gap-4 items-center mb-6 border-b border-zinc-100 pb-4">
+                      <div className="w-16 h-16 rounded-[18px] overflow-hidden bg-zinc-100">
+                        <img src={selectedProduct.image_url} className="w-full h-full object-cover"/>
+                      </div>
+                      <div>
+                          <h3 className="font-bold text-zinc-900 leading-tight text-lg">{selectedProduct.name}</h3>
+                          <p className="text-indigo-600 font-bold">Rp {selectedProduct.price.toLocaleString()}</p>
+                      </div>
+                      <button onClick={()=>setSelectedProduct(null)} className="ml-auto p-2 bg-zinc-100 rounded-full text-zinc-500"><X size={18}/></button>
                   </div>
-                  <div className="space-y-3">
-                      {contactMethods.map(c => (
-                          <a key={c.id} href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 bg-zinc-50 border border-zinc-200 rounded-2xl hover:bg-zinc-100 hover:border-indigo-200 transition-all group">
-                              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-zinc-700 group-hover:text-indigo-600"><ExternalLink size={18}/></div>
-                              <div>
-                                  <div className="font-bold text-zinc-900">{c.platform_name}</div>
-                                  <div className="text-xs text-zinc-400">Klik untuk membuka</div>
+                  {checkoutStep === 1 ? (
+                      <div className="space-y-4">
+                          <KodesetInput placeholder="Nama Lengkap" value={buyerForm.name} onChange={(e:any)=>setBuyerForm({...buyerForm, name: e.target.value})} />
+                          <KodesetInput placeholder="Email / WhatsApp" value={buyerForm.email} onChange={(e:any)=>setBuyerForm({...buyerForm, email: e.target.value})} />
+                          {selectedProduct.category === 'TopUp' ? (
+                              <div className="flex gap-3">
+                                  <div className="flex-1"><KodesetInput placeholder="User ID" value={topUpForm.userId} onChange={(e:any)=>setTopUpForm({...topUpForm, userId: e.target.value})} /></div>
+                                  <div className="w-28"><KodesetInput placeholder="Zone" value={topUpForm.zoneId} onChange={(e:any)=>setTopUpForm({...topUpForm, zoneId: e.target.value})} /></div>
                               </div>
-                          </a>
-                      ))}
-                  </div>
+                          ) : selectedProduct.category === 'Akun' && (
+                              <KodesetInput placeholder="Device (Android/iOS)" value={buyerForm.device_model} onChange={(e:any)=>setBuyerForm({...buyerForm, device_model: e.target.value})} />
+                          )}
+                          <button onClick={()=>setCheckoutStep(2)} className="w-full py-4 mt-2 bg-zinc-900 text-white font-bold rounded-[20px] shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all">Lanjut Pembayaran</button>
+                      </div>
+                  ) : (
+                      <div className="space-y-4">
+                          <div className="flex gap-2">
+                             <input className="flex-1 p-4 bg-zinc-50 rounded-[20px] font-bold text-sm uppercase outline-none border border-zinc-200 focus:border-indigo-500 transition-all" placeholder="VOUCHER CODE" value={voucherCode} onChange={e=>setVoucherCode(e.target.value)}/>
+                             <button onClick={()=>{const v=vouchers.find(x=>x.code===voucherCode&&x.is_active); if(v){setAppliedVoucher(v); showToast("Applied","success");}else showToast("Invalid","error")}} className="px-5 bg-indigo-600 text-white rounded-[20px] font-bold text-xs shadow-md">APPLY</button>
+                          </div>
+                          <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider ml-1 mt-4">Metode Pembayaran</p>
+                          <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto">
+                              {paymentMethods.map(pm => (
+                                  <div key={pm.id} onClick={()=>setSelectedPayment(pm)} className={`p-4 rounded-[20px] border cursor-pointer transition-all ${selectedPayment?.id===pm.id ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-500/20' : 'border-zinc-200 hover:border-zinc-300'}`}>
+                                      <div className="font-bold text-xs text-zinc-800 mb-1">{pm.name}</div>
+                                      {selectedPayment?.id===pm.id && <div className="text-[10px] font-mono bg-white p-1 rounded border border-indigo-100 text-zinc-500 inline-block">{pm.va_number}</div>}
+                                  </div>
+                              ))}
+                          </div>
+                          <div className="p-5 bg-zinc-50 rounded-[24px] border border-zinc-100">
+                               <div className="flex justify-between text-sm mb-2 text-zinc-500"><span>Subtotal</span><span>Rp {selectedProduct.price.toLocaleString()}</span></div>
+                               {appliedVoucher && <div className="flex justify-between text-sm text-green-600 mb-2"><span>Diskon</span><span>- Rp {appliedVoucher.amount.toLocaleString()}</span></div>}
+                               <div className="flex justify-between text-xl font-black mt-2 pt-3 border-t border-dashed border-zinc-200"><span>Total</span><span className="text-indigo-600">Rp {(selectedProduct.price - (appliedVoucher?.amount||0)).toLocaleString()}</span></div>
+                          </div>
+                          <div className="flex gap-3 pt-2">
+                              <button onClick={()=>setCheckoutStep(1)} className="flex-1 py-4 bg-white border border-zinc-200 font-bold rounded-[20px] text-zinc-600 hover:bg-zinc-50">Kembali</button>
+                              <button disabled={isSubmitting} onClick={handleCheckout} className="flex-[2] py-4 bg-zinc-900 text-white font-bold rounded-[20px] shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all">{isSubmitting ? '...' : 'Bayar Sekarang'}</button>
+                          </div>
+                      </div>
+                  )}
               </div>
           </div>
       )}
 
-      {/* Expense Detail Modal with Safety Check */}
+      {/* 3. CRUD MODAL */}
+      {modalType && !['invoice', 'expense_detail'].includes(modalType) && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-md p-4">
+              <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+                  <h3 className="font-bold text-xl mb-6 capitalize text-zinc-900">{editingItem ? 'Edit' : 'Tambah'} {modalType}</h3>
+                  <div className="space-y-4 mb-6">
+                      {modalType === 'product' && (
+                          <>
+                             <KodesetInput placeholder="Nama Produk" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
+                             <KodesetInput type="number" placeholder="Harga" value={formData.price||''} onChange={(e:any)=>setFormData({...formData, price:e.target.value})} />
+                             <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Software</option></select>
+                             <KodesetInput placeholder="Image URL" value={formData.image_url||''} onChange={(e:any)=>setFormData({...formData, image_url:e.target.value})} />
+                             <button onClick={()=>handleSaveItem('products', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Produk</button>
+                          </>
+                      )}
+                      {modalType === 'payment' && (
+                          <>
+                             <KodesetInput placeholder="Nama Bank / E-Wallet" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
+                             <KodesetInput placeholder="Nomor VA / Rekening" value={formData.va_number||''} onChange={(e:any)=>setFormData({...formData, va_number:e.target.value})} />
+                             <div className="flex items-center gap-2 mt-2 px-2">
+                                <span className="text-sm font-bold text-zinc-500">Status Aktif:</span>
+                                <input type="checkbox" className="w-5 h-5" checked={formData.is_active ?? true} onChange={(e)=>setFormData({...formData, is_active:e.target.checked})}/>
+                             </div>
+                             <button onClick={()=>handleSaveItem('payment_methods', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Metode</button>
+                          </>
+                      )}
+                      {modalType === 'voucher' && (
+                          <>
+                             <KodesetInput placeholder="Kode Voucher (ex: PROMO10)" value={formData.code||''} onChange={(e:any)=>setFormData({...formData, code:e.target.value.toUpperCase()})} />
+                             <KodesetInput type="number" placeholder="Nominal Diskon (Rp)" value={formData.amount||''} onChange={(e:any)=>setFormData({...formData, amount:e.target.value})} />
+                             <div className="flex items-center gap-2 mt-2 px-2">
+                                <span className="text-sm font-bold text-zinc-500">Status Aktif:</span>
+                                <input type="checkbox" className="w-5 h-5" checked={formData.is_active ?? true} onChange={(e)=>setFormData({...formData, is_active:e.target.checked})}/>
+                             </div>
+                             <button onClick={()=>handleSaveItem('vouchers', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Voucher</button>
+                          </>
+                      )}
+                      {modalType === 'contact' && (
+                          <>
+                             <KodesetInput placeholder="Platform (WA, IG, Email)" value={formData.platform_name||''} onChange={(e:any)=>setFormData({...formData, platform_name:e.target.value})} />
+                             <KodesetInput placeholder="URL / Link" value={formData.url||''} onChange={(e:any)=>setFormData({...formData, url:e.target.value})} />
+                             <div className="flex items-center gap-2 mt-2 px-2">
+                                <span className="text-sm font-bold text-zinc-500">Status Aktif:</span>
+                                <input type="checkbox" className="w-5 h-5" checked={formData.is_active ?? true} onChange={(e)=>setFormData({...formData, is_active:e.target.checked})}/>
+                             </div>
+                             <button onClick={()=>handleSaveItem('contact_methods', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Kontak</button>
+                          </>
+                      )}
+                  </div>
+                  <button onClick={()=>{setModalType(null); setEditingItem(null);}} className="text-zinc-400 font-bold w-full hover:text-zinc-600">Batal</button>
+              </div>
+          </div>
+      )}
+
+      {/* 4. EXPENSE DETAIL MODAL */}
       {modalType === 'expense_detail' && detailExpense && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
              <div className="bg-white w-full max-w-[340px] relative shadow-2xl rounded-none overflow-hidden">
@@ -780,8 +859,68 @@ export default function WuregStore() {
              </div>
           </div>
       )}
-      
-      {/* (Other existing modals: Invoice, CRUD, Checkout - omitted for length but assumed present in your file) */}
+
+      {/* 5. INVOICE MODAL (TRANSACTION) */}
+      {modalType === 'invoice' && detailTrx && (
+         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+             <div className="bg-white w-full max-w-[340px] relative shadow-2xl rounded-none overflow-hidden">
+                 <div ref={invoiceRef} className="p-8 bg-white text-zinc-900 font-mono text-xs leading-relaxed">
+                     <div className="text-center border-b-2 border-dashed border-zinc-300 pb-6 mb-6">
+                         <div className="w-16 h-16 bg-white rounded-full mx-auto mb-3 flex items-center justify-center overflow-hidden border border-zinc-200 p-1">
+                             <img src={STORE_LOGO} className="w-full h-full object-cover rounded-full" alt="Logo" crossOrigin="anonymous"/>
+                         </div>
+                         <h2 className="text-xl font-black uppercase tracking-[0.2em] mb-1">RECEIPT</h2>
+                         <p className="font-bold text-zinc-600">WuregStore Official</p>
+                         <p className="text-[10px] text-zinc-400 mt-1">{new Date(detailTrx.created_at).toLocaleString()}</p>
+                     </div>
+                     <div className="space-y-3 mb-6">
+                         <div className="flex justify-between"><span className="text-zinc-500">ORDER ID</span><span className="font-bold">#{detailTrx.id.slice(0,8)}</span></div>
+                         <div className="flex justify-between"><span className="text-zinc-500">BUYER</span><span className="font-bold text-right max-w-[150px] truncate">{detailTrx.buyer_name}</span></div>
+                         <div className="flex justify-between"><span className="text-zinc-500">METHOD</span><span className="font-bold uppercase">{detailTrx.payment_method}</span></div>
+                         <div className="flex justify-between"><span className="text-zinc-500">STATUS</span><span className={`font-bold uppercase px-1.5 py-0.5 rounded text-[10px] ${detailTrx.status === 'Selesai' ? 'bg-green-100 text-green-700' : detailTrx.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{detailTrx.status}</span></div>
+                     </div>
+                     <div className="border-t-2 border-dashed border-zinc-300 py-4">
+                         <div className="font-bold text-sm mb-1 text-zinc-800">{detailTrx.product_name}</div>
+                         <div className="flex justify-between text-zinc-500"><span>1 x {detailTrx.price.toLocaleString()}</span><span>{detailTrx.price.toLocaleString()}</span></div>
+                     </div>
+                     <div className="border-t-2 border-zinc-900 pt-3 flex justify-between text-lg font-black"><span>TOTAL</span><span>Rp {detailTrx.price.toLocaleString()}</span></div>
+                     <div className="mt-8 text-center space-y-1"><p className="text-[10px] text-zinc-400">TERIMA KASIH TELAH BERBELANJA</p></div>
+                 </div>
+                 <div className="p-4 bg-zinc-50 space-y-2 border-t border-zinc-100">
+                     <div className="flex gap-2">
+                         <button onClick={()=>generateFile(invoiceRef, 'jpg', `Invoice-${detailTrx.id}`)} disabled={isGenerating} className="flex-1 py-3 bg-zinc-900 text-white font-bold rounded-xl shadow-md text-[10px] uppercase">{isGenerating ? '...' : 'Save JPG'}</button>
+                         <button onClick={()=>generateFile(invoiceRef, 'pdf', `Invoice-${detailTrx.id}`)} disabled={isGenerating} className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl shadow-md text-[10px] uppercase">{isGenerating ? '...' : 'Print PDF'}</button>
+                     </div>
+                     <button onClick={()=>setModalType(null)} className="w-full py-3 bg-white border border-zinc-200 font-bold rounded-xl shadow-sm text-xs uppercase">Close</button>
+                 </div>
+             </div>
+         </div>
+      )}
+
+      {/* Support Modal (Other existing modals) */}
+      {isContactModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative">
+                  <button onClick={()=>setIsContactModalOpen(false)} className="absolute top-4 right-4 p-2 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200"><X size={18}/></button>
+                  <div className="text-center mb-6 mt-2">
+                      <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3"><MessageCircle size={28}/></div>
+                      <h3 className="font-bold text-xl text-zinc-900">Hubungi Kami</h3>
+                      <p className="text-zinc-500 text-xs">Pilih metode bantuan dibawah ini</p>
+                  </div>
+                  <div className="space-y-3">
+                      {contactMethods.map(c => (
+                          <a key={c.id} href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 bg-zinc-50 border border-zinc-200 rounded-2xl hover:bg-zinc-100 hover:border-indigo-200 transition-all group">
+                              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-zinc-700 group-hover:text-indigo-600"><ExternalLink size={18}/></div>
+                              <div>
+                                  <div className="font-bold text-zinc-900">{c.platform_name}</div>
+                                  <div className="text-xs text-zinc-400">Klik untuk membuka</div>
+                              </div>
+                          </a>
+                      ))}
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }
