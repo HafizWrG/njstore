@@ -7,7 +7,7 @@ import {
   Search, MessageCircle, LogOut, Trash2, Edit3, Eye, CheckCircle, 
   AlertCircle, RefreshCw, Plus, Monitor, FileSpreadsheet, Gamepad2, 
   Home, User, X, Zap, Settings, ToggleLeft, ToggleRight, Printer, 
-  Image as ImageIcon, Wallet, MinusCircle, PlusCircle, History, Receipt, Lock, ExternalLink
+  Image as ImageIcon, Wallet, MinusCircle, PlusCircle, History, Receipt, Lock, ExternalLink, TrendingUp, ArrowUpCircle
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -72,7 +72,7 @@ const KodesetProductCard = ({ product, onClick }: any) => {
                 </h3>
                 <div className="flex items-center justify-between mt-1">
                     <p className="text-base font-bold text-zinc-900">
-                       Rp {product.price.toLocaleString()}
+                        Rp {product.price.toLocaleString()}
                     </p>
                     <button className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 transition-all duration-300 group-hover:bg-indigo-600 group-hover:text-white">
                         <Plus size={18} strokeWidth={2.5} />
@@ -130,16 +130,18 @@ export default function WuregStore() {
   const [adminTab, setAdminTab] = useState<'dash' | 'trx' | 'prod' | 'setting' | 'expense'>('dash'); 
   const [settingSubTab, setSettingSubTab] = useState<'payment' | 'voucher' | 'social'>('payment');
   
-  // Cash Out Specifics
+  // Cash Out & Top Up Specifics
   const [isPinModalOpen, setIsPinModalOpen] = useState(false); 
+  const [pinAction, setPinAction] = useState<'cashout' | 'topup'>('cashout');
   const [cashOutPinInput, setCashOutPinInput] = useState('');
+  const [topUpAmount, setTopUpAmount] = useState(0);
   const [cashOutForm, setCashOutForm] = useState({
       tag: 'Anwaha Mart',
       items: [{ name: '', price: 0, qty: 1 }]
   });
 
   // CRUD & Modals
-  const [modalType, setModalType] = useState<'product' | 'payment' | 'voucher' | 'contact' | 'invoice' | 'expense_detail' | null>(null);
+  const [modalType, setModalType] = useState<'product' | 'payment' | 'voucher' | 'contact' | 'invoice' | 'expense_detail' | 'topup_balance' | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null); 
   const [detailTrx, setDetailTrx] = useState<any>(null);
   const [detailExpense, setDetailExpense] = useState<any>(null); 
@@ -188,7 +190,7 @@ export default function WuregStore() {
     fetchPublicData();
     const checkUser = async () => {
         const {data} = await supabase.auth.getUser();
-        if(data) setIsStaffLoggedIn(true);
+        if(data?.user) setIsStaffLoggedIn(true);
     };
     checkUser();
   }, []);
@@ -205,6 +207,27 @@ export default function WuregStore() {
       if(error) showToast(error.message, 'error');
       else { setIsStaffLoggedIn(true); showToast("Welcome!", "success"); setLoginForm({email:'', password:''}); }
       setIsAuthLoading(false);
+  };
+
+  // --- TOP UP LOGIC ---
+  const processFinalTopUp = async () => {
+    if(topUpAmount <= 0) return showToast("Nominal tidak valid", "error");
+    setIsSubmitting(true);
+    try {
+        const newBalance = shopBalance + Number(topUpAmount);
+        const { error } = await supabase.from('shop_balance').update({ current_balance: newBalance }).eq('id', 1);
+        if(error) throw error;
+        showToast("Saldo berhasil ditambah!", "success");
+        setTopUpAmount(0);
+        setModalType(null);
+        fetchPublicData();
+    } catch(err: any) {
+        showToast(err.message, "error");
+    } finally {
+        setIsSubmitting(false);
+        setIsPinModalOpen(false);
+        setCashOutPinInput('');
+    }
   };
 
   // --- CASH OUT LOGIC ---
@@ -262,7 +285,8 @@ export default function WuregStore() {
   const handlePinSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if(cashOutPinInput === CASH_OUT_PIN) {
-          processFinalCashOut();
+          if(pinAction === 'cashout') processFinalCashOut();
+          else processFinalTopUp();
       } else {
           showToast("PIN SALAH!", "error");
       }
@@ -362,343 +386,404 @@ export default function WuregStore() {
 
       {/* DESKTOP NAV */}
       <nav className="hidden md:flex fixed top-4 left-1/2 -translate-x-1/2 z-50 w-full max-w-5xl items-center justify-between px-6 py-3 bg-white/70 backdrop-blur-xl border border-white/40 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
-         <div className="flex items-center gap-3 cursor-pointer" onClick={()=>setActivePage('home')}>
-             <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 p-[2px]">
-                <img src={STORE_LOGO} className="w-full h-full rounded-full object-cover border-[2px] border-white"/>
-             </div>
-             <span className="font-bold text-lg tracking-tight">WuregStore</span>
-         </div>
-         <div className="flex items-center gap-1 bg-zinc-100/50 p-1.5 rounded-full">
-             {['home', 'cashout', 'staff'].map(page => (
-                 <button key={page} onClick={()=>setActivePage(page)} className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activePage===page ? 'bg-white text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}>
-                     {page === 'home' ? 'Store' : page === 'cashout' ? 'Cash Out' : 'Staff Portal'}
-                 </button>
-             ))}
-         </div>
-         <button onClick={()=>setIsContactModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 text-white rounded-full text-sm font-semibold hover:bg-zinc-800 transition-all">
-             <MessageCircle size={16}/> Support
-         </button>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={()=>setActivePage('home')}>
+              <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600 to-violet-500 p-[2px]">
+                 <img src={STORE_LOGO} className="w-full h-full rounded-full object-cover border-[2px] border-white" alt="logo"/>
+              </div>
+              <span className="font-bold text-lg tracking-tight">WuregStore</span>
+          </div>
+          <div className="flex items-center gap-1 bg-zinc-100/50 p-1.5 rounded-full">
+              {['home', 'cashout', 'staff'].map(page => (
+                  <button key={page} onClick={()=>setActivePage(page)} className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activePage===page ? 'bg-white text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}>
+                      {page === 'home' ? 'Store' : page === 'cashout' ? 'Cash Out' : 'Staff Portal'}
+                  </button>
+              ))}
+          </div>
+          <button onClick={()=>setIsContactModalOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900 text-white rounded-full text-sm font-semibold hover:bg-zinc-800 transition-all">
+              <MessageCircle size={16}/> Support
+          </button>
       </nav>
 
       {/* MOBILE NAV */}
       <nav className="md:hidden fixed bottom-6 left-6 right-6 z-50 bg-white/80 backdrop-blur-xl border border-white/50 p-2 rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.1)]">
-         <div className="flex justify-between items-center px-4">
-             <button onClick={()=>setActivePage('home')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='home' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
-                 <Home size={22} strokeWidth={activePage==='home' ? 2.5 : 2} />
-             </button>
-             <button onClick={()=>setActivePage('cashout')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='cashout' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
-                 <Wallet size={22} strokeWidth={activePage==='cashout' ? 2.5 : 2} />
-             </button>
-             <button onClick={()=>setActivePage('staff')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='staff' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
-                 <User size={22} strokeWidth={activePage==='staff' ? 2.5 : 2} />
-             </button>
-         </div>
+          <div className="flex justify-between items-center px-4">
+              <button onClick={()=>setActivePage('home')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='home' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
+                  <Home size={22} strokeWidth={activePage==='home' ? 2.5 : 2} />
+              </button>
+              <button onClick={()=>setActivePage('cashout')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='cashout' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
+                  <Wallet size={22} strokeWidth={activePage==='cashout' ? 2.5 : 2} />
+              </button>
+              <button onClick={()=>setActivePage('staff')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='staff' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
+                  <User size={22} strokeWidth={activePage==='staff' ? 2.5 : 2} />
+              </button>
+          </div>
       </nav>
 
       <main className="max-w-6xl mx-auto px-5 pt-8 md:pt-32 pb-24 min-h-screen">
-         {/* PAGE: HOME */}
-         {activePage === 'home' && (
-             <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
-                 <div className="md:hidden flex items-center gap-3 mb-8 mt-2">
-                    <img src={STORE_LOGO} className="w-10 h-10 rounded-full bg-zinc-100"/>
-                    <h1 className="font-bold text-xl text-zinc-900">WuregStore</h1>
-                 </div>
-                 <div className="text-center mb-12">
-                     <span className="inline-block py-1.5 px-4 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-bold text-indigo-600 mb-6 tracking-wide uppercase">Fastest Delivery ⚡️</span>
-                     <h2 className="text-4xl md:text-6xl font-black text-zinc-900 mb-6 leading-tight tracking-tight">Top Up Game <br className="hidden md:block"/><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-500">Termurah & Aman.</span></h2>
-                     <div className="max-w-lg mx-auto relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-400"><Search size={20}/></div>
-                        <input className="w-full py-4 pl-12 pr-4 bg-white border border-zinc-200 rounded-2xl font-medium outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm" placeholder="Cari game favoritmu..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}/>
-                     </div>
-                 </div>
-                 <div className="flex justify-between md:justify-center overflow-x-auto gap-2 mb-10 pb-4 md:pb-0 scrollbar-hide">
-                     {['All', 'Game', 'TopUp', 'Akun', 'Software'].map(c => (
-                         <button key={c} onClick={()=>setSelectedCategory(c)} className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap ${selectedCategory===c ? 'bg-zinc-900 text-white shadow-lg' : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50'}`}>{c}</button>
-                     ))}
-                 </div>
-                 {isLoading ? (
-                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">{[1,2,3,4,5].map(i => <div key={i} className="aspect-[4/5] bg-zinc-200/50 rounded-[24px] animate-pulse"/>)}</div>
-                 ) : (
-                     <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
-                         {products.filter(p => (selectedCategory === 'All' || p.category === selectedCategory) && p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
-                             <KodesetProductCard key={p.id} product={p} onClick={(prod: any) => { setSelectedProduct(prod); setCheckoutStep(1); }} />
-                         ))}
-                     </div>
-                 )}
-             </div>
-         )}
+          {/* PAGE: HOME */}
+          {activePage === 'home' && (
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="md:hidden flex items-center gap-3 mb-8 mt-2">
+                     <img src={STORE_LOGO} className="w-10 h-10 rounded-full bg-zinc-100" alt="logo"/>
+                     <h1 className="font-bold text-xl text-zinc-900">WuregStore</h1>
+                  </div>
+                  <div className="text-center mb-12">
+                      <span className="inline-block py-1.5 px-4 rounded-full bg-indigo-50 border border-indigo-100 text-xs font-bold text-indigo-600 mb-6 tracking-wide uppercase">Fastest Delivery ⚡️</span>
+                      <h2 className="text-4xl md:text-6xl font-black text-zinc-900 mb-6 leading-tight tracking-tight">Top Up Game <br className="hidden md:block"/><span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-500">Termurah & Aman.</span></h2>
+                      <div className="max-w-lg mx-auto relative group">
+                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-400"><Search size={20}/></div>
+                         <input className="w-full py-4 pl-12 pr-4 bg-white border border-zinc-200 rounded-2xl font-medium outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-sm" placeholder="Cari game favoritmu..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)}/>
+                      </div>
+                  </div>
+                  <div className="flex justify-between md:justify-center overflow-x-auto gap-2 mb-10 pb-4 md:pb-0 scrollbar-hide">
+                      {['All', 'Game', 'TopUp', 'Akun', 'Software'].map(c => (
+                          <button key={c} onClick={()=>setSelectedCategory(c)} className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap ${selectedCategory===c ? 'bg-zinc-900 text-white shadow-lg' : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50'}`}>{c}</button>
+                      ))}
+                  </div>
+                  {isLoading ? (
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">{[1,2,3,4,5].map(i => <div key={i} className="aspect-[4/5] bg-zinc-200/50 rounded-[24px] animate-pulse"/>)}</div>
+                  ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
+                          {products.filter(p => (selectedCategory === 'All' || p.category === selectedCategory) && p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
+                              <KodesetProductCard key={p.id} product={p} onClick={(prod: any) => { setSelectedProduct(prod); setCheckoutStep(1); }} />
+                          ))}
+                      </div>
+                  )}
+              </div>
+          )}
 
-         {/* --- PAGE: CASH OUT (PUBLICLY ACCESSIBLE) --- */}
-         {activePage === 'cashout' && (
-             <div className="animate-in fade-in slide-in-from-bottom-8">
-                 <div className="max-w-2xl mx-auto">
-                     <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm p-6 md:p-8">
-                         <div className="flex justify-between items-center mb-6 pb-4 border-b border-zinc-100">
-                            <div>
-                                <h3 className="font-bold text-xl">Kasir Pengeluaran</h3>
-                                <p className="text-xs text-zinc-400">Saldo saat ini: <span className="font-bold text-emerald-600">Rp {shopBalance.toLocaleString()}</span></p>
-                            </div>
-                            <button onClick={()=>setCashOutForm({tag:'Anwaha Mart', items:[{name:'', price:0, qty:1}]})} className="p-2 bg-zinc-50 rounded-xl hover:bg-zinc-100"><RefreshCw size={18}/></button>
-                         </div>
-
-                         <div className="space-y-6">
-                             {/* Tag Selection */}
+          {/* --- PAGE: CASH OUT (PUBLICLY ACCESSIBLE) --- */}
+          {activePage === 'cashout' && (
+              <div className="animate-in fade-in slide-in-from-bottom-8">
+                  <div className="max-w-2xl mx-auto">
+                      <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm p-6 md:p-8">
+                          <div className="flex justify-between items-center mb-6 pb-4 border-b border-zinc-100">
                              <div>
-                                 <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Pilih Tag</label>
-                                 <div className="flex gap-2 mt-2">
-                                     {['Anwaha Mart', 'Syirkah'].map(tag => (
-                                         <button key={tag} onClick={()=>setCashOutForm({...cashOutForm, tag})} className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${cashOutForm.tag === tag ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-zinc-100 bg-zinc-50 text-zinc-400'}`}>
-                                             {tag}
-                                         </button>
-                                     ))}
-                                 </div>
+                                 <h3 className="font-bold text-xl">Kasir Pengeluaran</h3>
+                                 <p className="text-xs text-zinc-400">Saldo saat ini: <span className="font-bold text-emerald-600">Rp {shopBalance.toLocaleString()}</span></p>
                              </div>
+                             <button onClick={()=>setCashOutForm({tag:'Anwaha Mart', items:[{name:'', price:0, qty:1}]})} className="p-2 bg-zinc-50 rounded-xl hover:bg-zinc-100"><RefreshCw size={18}/></button>
+                          </div>
 
-                             {/* Items List */}
-                             <div className="space-y-3">
-                                 <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Daftar Belanja</label>
-                                 {cashOutForm.items.map((item, idx) => (
-                                     <div key={idx} className="flex gap-2 items-start">
-                                         <div className="flex-1 space-y-2">
-                                             <input placeholder="Nama Jajanan / Barang" className="w-full p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-bold outline-none focus:border-indigo-500" value={item.name} onChange={e=>handleCashOutChange(idx, 'name', e.target.value)}/>
-                                             <div className="flex gap-2">
-                                                 <input type="number" placeholder="Harga" className="flex-1 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500" value={item.price || ''} onChange={e=>handleCashOutChange(idx, 'price', e.target.value)}/>
-                                                 <input type="number" placeholder="Qty" className="w-20 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500 text-center" value={item.qty} onChange={e=>handleCashOutChange(idx, 'qty', e.target.value)}/>
-                                             </div>
-                                         </div>
-                                         {cashOutForm.items.length > 1 && (
-                                             <button onClick={()=>handleRemoveCashOutItem(idx)} className="p-3 mt-1 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><MinusCircle size={20}/></button>
-                                         )}
-                                     </div>
-                                 ))}
-                                 <button onClick={handleAddCashOutItem} className="w-full py-3 border-2 border-dashed border-zinc-300 rounded-xl text-zinc-400 font-bold hover:border-indigo-500 hover:text-indigo-500 flex items-center justify-center gap-2">
-                                     <PlusCircle size={18}/> Tambah Jajanan Lain
-                                 </button>
-                             </div>
+                          <div className="space-y-6">
+                              {/* Tag Selection */}
+                              <div>
+                                  <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Pilih Tag</label>
+                                  <div className="flex gap-2 mt-2">
+                                      {['Anwaha Mart', 'Syirkah', 'Warung', 'Idaroh'].map(tag => (
+                                          <button key={tag} onClick={()=>setCashOutForm({...cashOutForm, tag})} className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${cashOutForm.tag === tag ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-zinc-100 bg-zinc-50 text-zinc-400'}`}>
+                                              {tag}
+                                          </button>
+                                      ))}
+                                  </div>
+                              </div>
 
-                             {/* Total & Pay */}
-                             <div className="pt-6 border-t border-zinc-100">
-                                 <div className="flex justify-between items-end mb-4">
-                                     <span className="text-sm text-zinc-500 font-bold">Total Pengeluaran</span>
-                                     <span className="text-2xl font-black text-zinc-900">Rp {calculateTotalExpense().toLocaleString()}</span>
-                                 </div>
-                                 {/* BUTTON TRIGGER MODAL PIN */}
-                                 <button disabled={isSubmitting} onClick={()=>setIsPinModalOpen(true)} className="w-full py-4 bg-zinc-900 text-white font-bold rounded-2xl shadow-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                                     {isSubmitting ? 'Memproses...' : 'PROSES CASH OUT'}
-                                 </button>
-                             </div>
-                         </div>
-                     </div>
-                 </div>
-             </div>
-         )}
+                              {/* Items List */}
+                              <div className="space-y-3">
+                                  <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Daftar Belanja</label>
+                                  {cashOutForm.items.map((item, idx) => (
+                                      <div key={idx} className="flex gap-2 items-start">
+                                          <div className="flex-1 space-y-2">
+                                              <input placeholder="Nama Jajanan / Barang" className="w-full p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-bold outline-none focus:border-indigo-500" value={item.name} onChange={e=>handleCashOutChange(idx, 'name', e.target.value)}/>
+                                              <div className="flex gap-2">
+                                                  <input type="number" placeholder="Harga" className="flex-1 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500" value={item.price || ''} onChange={e=>handleCashOutChange(idx, 'price', e.target.value)}/>
+                                                  <input type="number" placeholder="Qty" className="w-20 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500 text-center" value={item.qty} onChange={e=>handleCashOutChange(idx, 'qty', e.target.value)}/>
+                                              </div>
+                                          </div>
+                                          {cashOutForm.items.length > 1 && (
+                                              <button onClick={()=>handleRemoveCashOutItem(idx)} className="p-3 mt-1 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><MinusCircle size={20}/></button>
+                                          )}
+                                      </div>
+                                  ))}
+                                  <button onClick={handleAddCashOutItem} className="w-full py-3 border-2 border-dashed border-zinc-300 rounded-xl text-zinc-400 font-bold hover:border-indigo-500 hover:text-indigo-500 flex items-center justify-center gap-2">
+                                      <PlusCircle size={18}/> Tambah Jajanan Lain
+                                  </button>
+                              </div>
 
-         {/* PAGE: STAFF */}
-         {activePage === 'staff' && (
-             <div className="animate-in fade-in">
-                 {!isStaffLoggedIn ? (
-                     <div className="max-w-sm mx-auto pt-10">
-                         <div className="bg-white p-8 rounded-[32px] shadow-xl border border-zinc-100 text-center">
-                             <div className="w-16 h-16 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-6"><User size={32}/></div>
-                             <h2 className="text-2xl font-bold mb-6 text-zinc-900">Staff Portal</h2>
-                             <form onSubmit={handleLogin} className="space-y-4">
-                                 <KodesetInput type="email" placeholder="Email Address" value={loginForm.email} onChange={(e:any)=>setLoginForm({...loginForm, email: e.target.value})} icon={User} />
-                                 <KodesetInput type="password" placeholder="Password" value={loginForm.password} onChange={(e:any)=>setLoginForm({...loginForm, password: e.target.value})} icon={Lock} />
-                                 <button disabled={isAuthLoading} className="w-full py-4 bg-zinc-900 text-white font-bold rounded-2xl hover:scale-[1.02] transition-transform shadow-lg">{isAuthLoading ? 'Loading...' : 'Login Access'}</button>
-                             </form>
-                         </div>
-                     </div>
-                 ) : (
-                     <div className="space-y-6">
-                         <div className="bg-white p-2 rounded-[20px] border border-zinc-200 shadow-sm flex flex-wrap gap-2 justify-between items-center">
-                             <div className="flex gap-1 overflow-x-auto no-scrollbar">
-                                 {[
-                                     {id:'dash',l:'Dash',i:Monitor}, 
-                                     {id:'trx',l:'Order',i:FileSpreadsheet}, 
-                                     {id:'prod',l:'Produk',i:Gamepad2}, 
-                                     {id:'setting',l:'Set',i:Settings},
-                                     {id:'expense', l:'Pengeluaran', i:Receipt} 
-                                 ].map(m => (
-                                     <button key={m.id} onClick={()=>{setAdminTab(m.id as any);}} className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${adminTab===m.id ? 'bg-zinc-900 text-white shadow-md' : 'hover:bg-zinc-50 text-zinc-500'}`}><m.i size={14}/> {m.l}</button>
-                                 ))}
-                             </div>
-                             <button onClick={async()=>{await supabase.auth.signOut(); setIsStaffLoggedIn(false)}} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><LogOut size={18}/></button>
-                         </div>
+                              {/* Total & Pay */}
+                              <div className="pt-6 border-t border-zinc-100">
+                                  <div className="flex justify-between items-end mb-4">
+                                      <span className="text-sm text-zinc-500 font-bold">Total Pengeluaran</span>
+                                      <span className="text-2xl font-black text-zinc-900">Rp {calculateTotalExpense().toLocaleString()}</span>
+                                  </div>
+                                  <button disabled={isSubmitting} onClick={()=>{setPinAction('cashout'); setIsPinModalOpen(true);}} className="w-full py-4 bg-zinc-900 text-white font-bold rounded-2xl shadow-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                                      {isSubmitting ? 'Memproses...' : 'PROSES CASH OUT'}
+                                  </button>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          )}
 
-                         {/* DASHBOARD */}
-                         {adminTab === 'dash' && (
-                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                 <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-6 rounded-[24px] text-white shadow-xl">
-                                     <p className="text-emerald-100 text-xs font-bold uppercase tracking-wider mb-2">Saldo Toko (Admin)</p>
-                                     <h3 className="text-3xl font-bold">Rp {shopBalance.toLocaleString()}</h3>
-                                 </div>
-                                 <div className="bg-zinc-900 p-6 rounded-[24px] text-white shadow-xl">
-                                     <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Total Penjualan</p>
-                                     <h3 className="text-3xl font-bold">Rp {transactions.reduce((a,b)=>a+(b.price||0),0).toLocaleString()}</h3>
-                                 </div>
-                                 <div className="bg-white p-6 rounded-[24px] border border-zinc-100 shadow-sm">
-                                     <p className="text-zinc-400 text-xs font-bold uppercase mb-2">Total Produk</p>
-                                     <h3 className="text-3xl font-bold text-zinc-900">{products.length}</h3>
-                                 </div>
-                             </div>
-                         )}
+          {/* PAGE: STAFF */}
+          {activePage === 'staff' && (
+              <div className="animate-in fade-in">
+                  {!isStaffLoggedIn ? (
+                      <div className="max-w-sm mx-auto pt-10">
+                          <div className="bg-white p-8 rounded-[32px] shadow-xl border border-zinc-100 text-center">
+                              <div className="w-16 h-16 bg-zinc-100 text-zinc-900 rounded-2xl flex items-center justify-center mx-auto mb-6"><User size={32}/></div>
+                              <h2 className="text-2xl font-bold mb-6 text-zinc-900">Staff Portal</h2>
+                              <form onSubmit={handleLogin} className="space-y-4">
+                                  <KodesetInput type="email" placeholder="Email Address" value={loginForm.email} onChange={(e:any)=>setLoginForm({...loginForm, email: e.target.value})} icon={User} />
+                                  <KodesetInput type="password" placeholder="Password" value={loginForm.password} onChange={(e:any)=>setLoginForm({...loginForm, password: e.target.value})} icon={Lock} />
+                                  <button disabled={isAuthLoading} className="w-full py-4 bg-zinc-900 text-white font-bold rounded-2xl hover:scale-[1.02] transition-transform shadow-lg">{isAuthLoading ? 'Loading...' : 'Login Access'}</button>
+                              </form>
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="space-y-6">
+                          <div className="bg-white p-2 rounded-[20px] border border-zinc-200 shadow-sm flex flex-wrap gap-2 justify-between items-center">
+                              <div className="flex gap-1 overflow-x-auto no-scrollbar">
+                                  {[
+                                      {id:'dash',l:'Dash',i:Monitor}, 
+                                      {id:'trx',l:'Order',i:FileSpreadsheet}, 
+                                      {id:'prod',l:'Produk',i:Gamepad2}, 
+                                      {id:'setting',l:'Set',i:Settings},
+                                      {id:'expense', l:'Pengeluaran', i:Receipt} 
+                                  ].map(m => (
+                                      <button key={m.id} onClick={()=>{setAdminTab(m.id as any);}} className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all whitespace-nowrap ${adminTab===m.id ? 'bg-zinc-900 text-white shadow-md' : 'hover:bg-zinc-50 text-zinc-500'}`}><m.i size={14}/> {m.l}</button>
+                                  ))}
+                              </div>
+                              <button onClick={async()=>{await supabase.auth.signOut(); setIsStaffLoggedIn(false)}} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><LogOut size={18}/></button>
+                          </div>
 
-                         {/* --- TAB PENGELUARAN (LAPORAN) --- */}
-                         {adminTab === 'expense' && (
+                          {/* DASHBOARD */}
+                          {adminTab === 'dash' && (
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-6 rounded-[24px] text-white shadow-xl relative overflow-hidden group">
+                                      <div className="relative z-10">
+                                        <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-2">Saldo Toko (Admin)</p>
+                                        <h3 className="text-3xl font-bold mb-4">Rp {shopBalance.toLocaleString()}</h3>
+                                        <button onClick={()=>setModalType('topup_balance')} className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-all backdrop-blur-sm">
+                                            <ArrowUpCircle size={14}/> Top Up Saldo
+                                        </button>
+                                      </div>
+                                      <TrendingUp className="absolute right-[-10px] bottom-[-10px] w-32 h-32 text-white/10 group-hover:scale-110 transition-transform" />
+                                  </div>
+                                  <div className="bg-zinc-900 p-6 rounded-[24px] text-white shadow-xl">
+                                      <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Total Penjualan</p>
+                                      <h3 className="text-3xl font-bold">Rp {transactions.reduce((a,b)=>a+(b.price||0),0).toLocaleString()}</h3>
+                                  </div>
+                                  <div className="bg-white p-6 rounded-[24px] border border-zinc-100 shadow-sm">
+                                      <p className="text-zinc-400 text-xs font-bold uppercase mb-2">Total Produk</p>
+                                      <h3 className="text-3xl font-bold text-zinc-900">{products.length}</h3>
+                                  </div>
+                              </div>
+                          )}
+
+                          {/* --- TAB PENGELUARAN (LAPORAN) --- */}
+                          {adminTab === 'expense' && (
+                              <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm overflow-hidden">
+                                  <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
+                                      <h3 className="font-bold text-zinc-900">Laporan Pengeluaran</h3>
+                                      <button onClick={refreshAdminData}><RefreshCw size={16} className="text-zinc-400 hover:text-indigo-600"/></button>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                      <table className="w-full text-xs text-left whitespace-nowrap">
+                                          <thead className="bg-zinc-50 text-zinc-500 font-bold uppercase tracking-wider">
+                                              <tr>
+                                                  <th className="p-4">Tanggal</th>
+                                                  <th className="p-4">Tag</th>
+                                                  <th className="p-4">Total</th>
+                                                  <th className="p-4">Item Count</th>
+                                                  <th className="p-4 text-right">Action</th>
+                                              </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-zinc-100">
+                                              {expenses.map(ex => (
+                                                  <tr key={ex.id} className="hover:bg-zinc-50">
+                                                      <td className="p-4 font-mono text-zinc-500">{new Date(ex.created_at).toLocaleString()}</td>
+                                                      <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${ex.tag==='Syirkah' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{ex.tag}</span></td>
+                                                      <td className="p-4 font-bold text-red-600">- Rp {ex.total_amount.toLocaleString()}</td>
+                                                      <td className="p-4 text-zinc-500">{ex.items?.length || 0} Items</td>
+                                                      <td className="p-4 text-right">
+                                                          <button onClick={()=>{setDetailExpense(ex); setModalType('expense_detail');}} className="p-2 bg-zinc-100 rounded-lg text-zinc-600 hover:bg-zinc-200"><Eye size={16}/></button>
+                                                      </td>
+                                                  </tr>
+                                              ))}
+                                              {expenses.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-zinc-400">Belum ada data pengeluaran.</td></tr>}
+                                          </tbody>
+                                      </table>
+                                  </div>
+                              </div>
+                          )}
+
+                          {/* Transaction Table */}
+                          {adminTab === 'trx' && (
                              <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm overflow-hidden">
-                                 <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
-                                     <h3 className="font-bold text-zinc-900">Laporan Pengeluaran</h3>
-                                     <button onClick={refreshAdminData}><RefreshCw size={16} className="text-zinc-400 hover:text-indigo-600"/></button>
-                                 </div>
-                                 <div className="overflow-x-auto">
-                                     <table className="w-full text-xs text-left whitespace-nowrap">
-                                         <thead className="bg-zinc-50 text-zinc-500 font-bold uppercase tracking-wider">
-                                             <tr>
-                                                 <th className="p-4">Tanggal</th>
-                                                 <th className="p-4">Tag</th>
-                                                 <th className="p-4">Total</th>
-                                                 <th className="p-4">Item Count</th>
-                                                 <th className="p-4 text-right">Action</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody className="divide-y divide-zinc-100">
-                                             {expenses.map(ex => (
-                                                 <tr key={ex.id} className="hover:bg-zinc-50">
-                                                     <td className="p-4 font-mono text-zinc-500">{new Date(ex.created_at).toLocaleString()}</td>
-                                                     <td className="p-4"><span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${ex.tag==='Syirkah' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>{ex.tag}</span></td>
-                                                     <td className="p-4 font-bold text-red-600">- Rp {ex.total_amount.toLocaleString()}</td>
-                                                     <td className="p-4 text-zinc-500">{ex.items?.length || 0} Items</td>
-                                                     <td className="p-4 text-right">
-                                                         <button onClick={()=>{setDetailExpense(ex); setModalType('expense_detail');}} className="p-2 bg-zinc-100 rounded-lg text-zinc-600 hover:bg-zinc-200"><Eye size={16}/></button>
-                                                     </td>
-                                                 </tr>
-                                             ))}
-                                             {expenses.length === 0 && <tr><td colSpan={5} className="p-8 text-center text-zinc-400">Belum ada data pengeluaran.</td></tr>}
-                                         </tbody>
-                                     </table>
-                                 </div>
-                             </div>
-                         )}
+                                  <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
+                                      <h3 className="font-bold text-zinc-900">Transaction Report</h3>
+                                      <button onClick={refreshAdminData}><RefreshCw size={16} className="text-zinc-400 hover:text-indigo-600"/></button>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                      <table className="w-full text-xs text-left whitespace-nowrap">
+                                          <thead className="bg-zinc-50 text-zinc-500 font-bold uppercase tracking-wider">
+                                              <tr>
+                                                  <th className="p-4">ID / Date</th>
+                                                  <th className="p-4">Buyer Info</th>
+                                                  <th className="p-4">Item & Price</th>
+                                                  <th className="p-4">Device / Zone</th>
+                                                  <th className="p-4">Method</th>
+                                                  <th className="p-4">Status</th>
+                                                  <th className="p-4 text-right">Action</th>
+                                              </tr>
+                                          </thead>
+                                          <tbody className="divide-y divide-zinc-100">
+                                              {transactions.map(t => (
+                                                  <tr key={t.id} className="hover:bg-zinc-50 transition-colors">
+                                                      <td className="p-4 font-mono">
+                                                          <div className="font-bold text-zinc-900">#{t.id.slice(0,6)}</div>
+                                                          <div className="text-[10px] text-zinc-400">{new Date(t.created_at).toLocaleString()}</div>
+                                                      </td>
+                                                      <td className="p-4">
+                                                          <div className="font-bold text-zinc-800">{t.buyer_name}</div>
+                                                          <div className="text-zinc-500">{t.buyer_email}</div>
+                                                      </td>
+                                                      <td className="p-4">
+                                                          <div className="font-bold text-zinc-800">{t.product_name}</div>
+                                                          <div className="text-indigo-600 font-bold">Rp {t.price.toLocaleString()}</div>
+                                                      </td>
+                                                      <td className="p-4 text-zinc-600">{t.device_model || '-'}</td>
+                                                      <td className="p-4 uppercase text-xs font-bold text-zinc-500">{t.payment_method}</td>
+                                                      <td className="p-4">
+                                                          <select value={t.status} onChange={(e)=>handleStatusChange(t.id, e.target.value)} className={`text-[10px] font-bold uppercase py-1 px-2 rounded-lg border-none outline-none cursor-pointer ${t.status==='Selesai'?'bg-green-100 text-green-700':t.status==='Pending'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-700'}`}>
+                                                              <option value="Pending">PENDING</option><option value="Proses">PROSES</option><option value="Selesai">SELESAI</option><option value="Gagal">GAGAL</option>
+                                                          </select>
+                                                      </td>
+                                                      <td className="p-4 text-right space-x-2">
+                                                          <button onClick={()=>{setDetailTrx(t); setModalType('invoice');}} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg"><Eye size={14}/></button>
+                                                          <button onClick={()=>handleDelete('transactions', t.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={14}/></button>
+                                                      </td>
+                                                  </tr>
+                                              ))}
+                                          </tbody>
+                                      </table>
+                                  </div>
+                              </div>
+                          )}
 
-                         {/* Transaction Table */}
-                         {adminTab === 'trx' && (
-                            <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm overflow-hidden">
-                                 <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
-                                     <h3 className="font-bold text-zinc-900">Transaction Report</h3>
-                                     <button onClick={refreshAdminData}><RefreshCw size={16} className="text-zinc-400 hover:text-indigo-600"/></button>
-                                 </div>
-                                 <div className="overflow-x-auto">
-                                     <table className="w-full text-xs text-left whitespace-nowrap">
-                                         <thead className="bg-zinc-50 text-zinc-500 font-bold uppercase tracking-wider">
-                                             <tr>
-                                                 <th className="p-4">ID / Date</th>
-                                                 <th className="p-4">Buyer Info</th>
-                                                 <th className="p-4">Item & Price</th>
-                                                 <th className="p-4">Device / Zone</th>
-                                                 <th className="p-4">Method</th>
-                                                 <th className="p-4">Status</th>
-                                                 <th className="p-4 text-right">Action</th>
-                                             </tr>
-                                         </thead>
-                                         <tbody className="divide-y divide-zinc-100">
-                                             {transactions.map(t => (
-                                                 <tr key={t.id} className="hover:bg-zinc-50 transition-colors">
-                                                     <td className="p-4 font-mono">
-                                                         <div className="font-bold text-zinc-900">#{t.id.slice(0,6)}</div>
-                                                         <div className="text-[10px] text-zinc-400">{new Date(t.created_at).toLocaleString()}</div>
-                                                     </td>
-                                                     <td className="p-4">
-                                                         <div className="font-bold text-zinc-800">{t.buyer_name}</div>
-                                                         <div className="text-zinc-500">{t.buyer_email}</div>
-                                                     </td>
-                                                     <td className="p-4">
-                                                         <div className="font-bold text-zinc-800">{t.product_name}</div>
-                                                         <div className="text-indigo-600 font-bold">Rp {t.price.toLocaleString()}</div>
-                                                     </td>
-                                                     <td className="p-4 text-zinc-600">{t.device_model || '-'}</td>
-                                                     <td className="p-4 uppercase text-xs font-bold text-zinc-500">{t.payment_method}</td>
-                                                     <td className="p-4">
-                                                         <select value={t.status} onChange={(e)=>handleStatusChange(t.id, e.target.value)} className={`text-[10px] font-bold uppercase py-1 px-2 rounded-lg border-none outline-none cursor-pointer ${t.status==='Selesai'?'bg-green-100 text-green-700':t.status==='Pending'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-700'}`}>
-                                                             <option value="Pending">PENDING</option><option value="Proses">PROSES</option><option value="Selesai">SELESAI</option><option value="Gagal">GAGAL</option>
-                                                         </select>
-                                                     </td>
-                                                     <td className="p-4 text-right space-x-2">
-                                                         <button onClick={()=>{setDetailTrx(t); setModalType('invoice');}} className="text-blue-500 hover:bg-blue-50 p-1.5 rounded-lg"><Eye size={14}/></button>
-                                                         <button onClick={()=>handleDelete('transactions', t.id)} className="text-red-500 hover:bg-red-50 p-1.5 rounded-lg"><Trash2 size={14}/></button>
-                                                     </td>
-                                                 </tr>
-                                             ))}
-                                         </tbody>
-                                     </table>
-                                 </div>
-                             </div>
-                         )}
+                          {/* Products & Settings */}
+                          {adminTab === 'prod' && (
+                              <div className="space-y-4">
+                                  <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('product');}} className="w-full py-4 border-2 border-dashed border-zinc-300 rounded-[24px] text-zinc-400 font-bold hover:border-indigo-500 hover:text-indigo-500 transition-colors bg-zinc-50">+ Tambah Produk</button>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {products.map(p => (
+                                          <div key={p.id} className="flex gap-4 p-3 bg-white border border-zinc-100 rounded-[24px] shadow-sm hover:shadow-md transition-all items-center">
+                                              <img src={p.image_url} className="w-14 h-14 rounded-2xl object-cover bg-zinc-100" alt="prod"/>
+                                              <div className="flex-1 min-w-0">
+                                                  <h4 className="font-bold text-sm truncate">{p.name}</h4>
+                                                  <p className="text-xs text-zinc-500">Rp {p.price.toLocaleString()}</p>
+                                              </div>
+                                              <div className="flex gap-1 items-center">
+                                                 <button onClick={()=>handleToggleProductReady(p)} className={`p-2.5 rounded-xl ${p.is_ready ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{p.is_ready ? <ToggleRight size={16}/> : <ToggleLeft size={16}/>}</button>
+                                                 <button onClick={()=>{setEditingItem(p); setFormData(p); setModalType('product');}} className="p-2.5 bg-zinc-50 rounded-xl text-zinc-600 hover:bg-zinc-200"><Edit3 size={14}/></button>
+                                                 <button onClick={()=>handleDelete('products', p.id)} className="p-2.5 bg-red-50 rounded-xl text-red-500 hover:bg-red-100"><Trash2 size={14}/></button>
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+                          {adminTab === 'setting' && (
+                              <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm p-6">
+                                  <div className="flex gap-2 mb-6 border-b border-zinc-100 pb-4 overflow-x-auto">
+                                     <button onClick={()=>setSettingSubTab('payment')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${settingSubTab==='payment' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}`}>Payment</button>
+                                     <button onClick={()=>setSettingSubTab('voucher')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${settingSubTab==='voucher' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}`}>Vouchers</button>
+                                     <button onClick={()=>setSettingSubTab('social')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${settingSubTab==='social' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}`}>Social</button>
+                                  </div>
+                                  
+                                  {settingSubTab === 'payment' && (
+                                     <div className="space-y-4 animate-in fade-in">
+                                         <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('payment');}} className="w-full py-3 border-dashed border-2 border-zinc-200 rounded-xl text-xs font-bold text-zinc-400 hover:border-indigo-500 hover:text-indigo-500">+ Add Payment</button>
+                                         {paymentMethods.map(pm => (
+                                             <div key={pm.id} className="flex justify-between items-center p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                                                 <div>
+                                                     <div className="font-bold text-sm text-zinc-900">{pm.name}</div>
+                                                     <div className="text-xs text-zinc-500 font-mono">{pm.va_number}</div>
+                                                 </div>
+                                                 <div className="flex items-center gap-2">
+                                                     <button onClick={()=>handleToggleActive('payment_methods', pm)} className={`p-1.5 rounded-lg ${pm.is_active ? 'bg-green-100 text-green-600' : 'bg-zinc-200 text-zinc-400'}`}>{pm.is_active ? <ToggleRight size={20}/> : <ToggleLeft size={20}/>}</button>
+                                                     <button onClick={()=>{setEditingItem(pm); setFormData(pm); setModalType('payment');}} className="p-1.5 bg-white border border-zinc-200 rounded-lg text-zinc-600"><Edit3 size={16}/></button>
+                                                     <button onClick={()=>handleDelete('payment_methods', pm.id)} className="p-1.5 bg-white border border-red-200 rounded-lg text-red-500"><Trash2 size={16}/></button>
+                                                 </div>
+                                             </div>
+                                         ))}
+                                     </div>
+                                  )}
 
-                         {/* Products & Settings */}
-                         {adminTab === 'prod' && (
-                             <div className="space-y-4">
-                                 <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('product');}} className="w-full py-4 border-2 border-dashed border-zinc-300 rounded-[24px] text-zinc-400 font-bold hover:border-indigo-500 hover:text-indigo-500 transition-colors bg-zinc-50">+ Tambah Produk</button>
-                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                     {products.map(p => (
-                                         <div key={p.id} className="flex gap-4 p-3 bg-white border border-zinc-100 rounded-[24px] shadow-sm hover:shadow-md transition-all items-center">
-                                             <img src={p.image_url} className="w-14 h-14 rounded-2xl object-cover bg-zinc-100"/>
-                                             <div className="flex-1 min-w-0">
-                                                 <h4 className="font-bold text-sm truncate">{p.name}</h4>
-                                                 <p className="text-xs text-zinc-500">Rp {p.price.toLocaleString()}</p>
+                                  {settingSubTab === 'voucher' && (
+                                     <div className="space-y-4 animate-in fade-in">
+                                         <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('voucher');}} className="w-full py-3 border-dashed border-2 border-zinc-200 rounded-xl text-xs font-bold text-zinc-400 hover:border-indigo-500 hover:text-indigo-500">+ Add Voucher</button>
+                                         {vouchers.map(v => (
+                                             <div key={v.id} className="flex justify-between items-center p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                                                 <div>
+                                                     <div className="font-bold text-sm text-zinc-900">{v.code}</div>
+                                                     <div className="text-xs text-indigo-600 font-bold">Rp {v.amount.toLocaleString()}</div>
+                                                 </div>
+                                                 <div className="flex items-center gap-2">
+                                                     <button onClick={()=>handleToggleActive('vouchers', v)} className={`p-1.5 rounded-lg ${v.is_active ? 'bg-green-100 text-green-600' : 'bg-zinc-200 text-zinc-400'}`}>{v.is_active ? <ToggleRight size={20}/> : <ToggleLeft size={20}/>}</button>
+                                                     <button onClick={()=>{setEditingItem(v); setFormData(v); setModalType('voucher');}} className="p-1.5 bg-white border border-zinc-200 rounded-lg text-zinc-600"><Edit3 size={16}/></button>
+                                                     <button onClick={()=>handleDelete('vouchers', v.id)} className="p-1.5 bg-white border border-red-200 rounded-lg text-red-500"><Trash2 size={16}/></button>
+                                                 </div>
                                              </div>
-                                             <div className="flex gap-1 items-center">
-                                                <button onClick={()=>handleToggleProductReady(p)} className={`p-2.5 rounded-xl ${p.is_ready ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{p.is_ready ? <ToggleRight size={16}/> : <ToggleLeft size={16}/>}</button>
-                                                <button onClick={()=>{setEditingItem(p); setFormData(p); setModalType('product');}} className="p-2.5 bg-zinc-50 rounded-xl text-zinc-600 hover:bg-zinc-200"><Edit3 size={14}/></button>
-                                                <button onClick={()=>handleDelete('products', p.id)} className="p-2.5 bg-red-50 rounded-xl text-red-500 hover:bg-red-100"><Trash2 size={14}/></button>
+                                         ))}
+                                     </div>
+                                  )}
+
+                                  {settingSubTab === 'social' && (
+                                     <div className="space-y-4 animate-in fade-in">
+                                         <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('contact');}} className="w-full py-3 border-dashed border-2 border-zinc-200 rounded-xl text-xs font-bold text-zinc-400 hover:border-indigo-500 hover:text-indigo-500">+ Add Social Link</button>
+                                         {contactMethods.map(c => (
+                                             <div key={c.id} className="flex justify-between items-center p-4 bg-zinc-50 rounded-xl border border-zinc-200">
+                                                 <div className="flex items-center gap-3">
+                                                     <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-zinc-100"><ExternalLink size={14}/></div>
+                                                     <div className="font-bold text-sm text-zinc-900">{c.platform_name}</div>
+                                                 </div>
+                                                 <div className="flex items-center gap-2">
+                                                     <button onClick={()=>handleToggleActive('contact_methods', c)} className={`p-1.5 rounded-lg ${c.is_active ? 'bg-green-100 text-green-600' : 'bg-zinc-200 text-zinc-400'}`}>{c.is_active ? <ToggleRight size={20}/> : <ToggleLeft size={20}/>}</button>
+                                                     <button onClick={()=>{setEditingItem(c); setFormData(c); setModalType('contact');}} className="p-1.5 bg-white border border-zinc-200 rounded-lg text-zinc-600"><Edit3 size={16}/></button>
+                                                     <button onClick={()=>handleDelete('contact_methods', c.id)} className="p-1.5 bg-white border border-red-200 rounded-lg text-red-500"><Trash2 size={16}/></button>
+                                                 </div>
                                              </div>
-                                         </div>
-                                     ))}
-                                 </div>
-                             </div>
-                         )}
-                         {adminTab === 'setting' && (
-                             <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm p-6">
-                                 <div className="flex gap-2 mb-6 border-b border-zinc-100 pb-4 overflow-x-auto">
-                                    <button onClick={()=>setSettingSubTab('payment')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${settingSubTab==='payment' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}`}>Payment</button>
-                                    <button onClick={()=>setSettingSubTab('voucher')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${settingSubTab==='voucher' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}`}>Vouchers</button>
-                                    <button onClick={()=>setSettingSubTab('social')} className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${settingSubTab==='social' ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-500'}`}>Social</button>
-                                 </div>
-                                 {/* Payment/Voucher/Social Settings Code (Same as previous) */}
-                                 {settingSubTab === 'payment' && (
-                                    <div className="space-y-4 animate-in fade-in">
-                                        <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('payment');}} className="w-full py-3 border-dashed border-2 border-zinc-200 rounded-xl text-xs font-bold text-zinc-400 hover:border-indigo-500 hover:text-indigo-500">+ Add Payment</button>
-                                        {paymentMethods.map(pm => (
-                                            <div key={pm.id} className="flex justify-between items-center p-4 bg-zinc-50 rounded-xl border border-zinc-200">
-                                                <div>
-                                                    <div className="font-bold text-sm text-zinc-900">{pm.name}</div>
-                                                    <div className="text-xs text-zinc-500 font-mono">{pm.va_number}</div>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button onClick={()=>handleToggleActive('payment_methods', pm)} className={`p-1.5 rounded-lg ${pm.is_active ? 'bg-green-100 text-green-600' : 'bg-zinc-200 text-zinc-400'}`}>{pm.is_active ? <ToggleRight size={20}/> : <ToggleLeft size={20}/>}</button>
-                                                    <button onClick={()=>{setEditingItem(pm); setFormData(pm); setModalType('payment');}} className="p-1.5 bg-white border border-zinc-200 rounded-lg text-zinc-600"><Edit3 size={16}/></button>
-                                                    <button onClick={()=>handleDelete('payment_methods', pm.id)} className="p-1.5 bg-white border border-red-200 rounded-lg text-red-500"><Trash2 size={16}/></button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                 )}
-                                 {/* (Voucher & Social logic identical to previous code) */}
-                             </div>
-                         )}
-                     </div>
-                 )}
-             </div>
-         )}
+                                         ))}
+                                     </div>
+                                  )}
+                              </div>
+                          )}
+                      </div>
+                  )}
+              </div>
+          )}
       </main>
 
       {/* --- MODALS --- */}
+      
+      {/* TOP UP BALANCE MODAL */}
+      {modalType === 'topup_balance' && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in zoom-in-95">
+             <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl relative">
+                <button onClick={()=>setModalType(null)} className="absolute top-6 right-6 p-2 bg-zinc-100 rounded-full text-zinc-500"><X size={18}/></button>
+                <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><TrendingUp size={32}/></div>
+                    <h3 className="text-xl font-bold">Top Up Saldo Admin</h3>
+                    <p className="text-xs text-zinc-400">Tambah likuiditas untuk pengeluaran toko</p>
+                </div>
+                <div className="space-y-4">
+                    <KodesetInput type="number" placeholder="Nominal Saldo (Rp)" value={topUpAmount || ''} onChange={(e:any)=>setTopUpAmount(e.target.value)} icon={Wallet} />
+                    <button onClick={()=>{setPinAction('topup'); setIsPinModalOpen(true);}} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition-all">Lanjut Verifikasi PIN</button>
+                </div>
+             </div>
+          </div>
+      )}
+
       {/* 1. PIN VERIFICATION MODAL */}
       {isPinModalOpen && (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in zoom-in-95">
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-xs p-6 rounded-[24px] shadow-2xl text-center">
                   <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-900"><Lock size={20}/></div>
                   <h3 className="font-bold text-lg mb-1">Verifikasi PIN</h3>
-                  <p className="text-xs text-zinc-400 mb-4">Masukkan PIN untuk memproses pengeluaran.</p>
+                  <p className="text-xs text-zinc-400 mb-4">Masukkan PIN untuk mengonfirmasi {pinAction === 'topup' ? 'Top Up' : 'Cash Out'}.</p>
                   <form onSubmit={handlePinSubmit} className="space-y-3">
                       <input type="password" autoFocus className="w-full text-center text-xl tracking-[0.3em] font-bold p-3 bg-zinc-50 rounded-xl border border-zinc-200 focus:border-zinc-900 outline-none" placeholder="••••" value={cashOutPinInput} onChange={e=>setCashOutPinInput(e.target.value)}/>
                       <div className="flex gap-2">
@@ -716,7 +801,7 @@ export default function WuregStore() {
               <div className="bg-white w-full md:max-w-md rounded-t-[32px] md:rounded-[32px] p-6 md:p-8 shadow-2xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-10">
                   <div className="flex gap-4 items-center mb-6 border-b border-zinc-100 pb-4">
                       <div className="w-16 h-16 rounded-[18px] overflow-hidden bg-zinc-100">
-                        <img src={selectedProduct.image_url} className="w-full h-full object-cover"/>
+                        <img src={selectedProduct.image_url} className="w-full h-full object-cover" alt="prod"/>
                       </div>
                       <div>
                           <h3 className="font-bold text-zinc-900 leading-tight text-lg">{selectedProduct.name}</h3>
@@ -769,8 +854,8 @@ export default function WuregStore() {
       )}
 
       {/* 3. CRUD MODAL */}
-      {modalType && !['invoice', 'expense_detail'].includes(modalType) && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-md p-4">
+      {modalType && !['invoice', 'expense_detail', 'topup_balance'].includes(modalType) && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-md p-4">
               <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
                   <h3 className="font-bold text-xl mb-6 capitalize text-zinc-900">{editingItem ? 'Edit' : 'Tambah'} {modalType}</h3>
                   <div className="space-y-4 mb-6">
@@ -824,7 +909,7 @@ export default function WuregStore() {
 
       {/* 4. EXPENSE DETAIL MODAL */}
       {modalType === 'expense_detail' && detailExpense && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
              <div className="bg-white w-full max-w-[340px] relative shadow-2xl rounded-none overflow-hidden">
                  <div ref={expenseRef} className="p-8 bg-white text-zinc-900 font-mono text-xs leading-relaxed">
                      <div className="text-center border-b-2 border-dashed border-zinc-300 pb-6 mb-6">
@@ -862,7 +947,7 @@ export default function WuregStore() {
 
       {/* 5. INVOICE MODAL (TRANSACTION) */}
       {modalType === 'invoice' && detailTrx && (
-         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
+         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
              <div className="bg-white w-full max-w-[340px] relative shadow-2xl rounded-none overflow-hidden">
                  <div ref={invoiceRef} className="p-8 bg-white text-zinc-900 font-mono text-xs leading-relaxed">
                      <div className="text-center border-b-2 border-dashed border-zinc-300 pb-6 mb-6">
@@ -897,9 +982,9 @@ export default function WuregStore() {
          </div>
       )}
 
-      {/* Support Modal (Other existing modals) */}
+      {/* Support Modal */}
       {isContactModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative">
                   <button onClick={()=>setIsContactModalOpen(false)} className="absolute top-4 right-4 p-2 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200"><X size={18}/></button>
                   <div className="text-center mb-6 mt-2">
