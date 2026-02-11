@@ -606,7 +606,7 @@ export default function WuregStore() {
           <Monitor size={18} className="text-indigo-600" /> Category Performance
         </h4>
         <div className="space-y-5">
-          {['Game', 'TopUp', 'Akun', 'Software'].map(cat => {
+          {['Game', 'TopUp', 'Akun', 'Software', 'Jasa'].map(cat => {
             const count = transactions.filter(t => products.find(p => p.name === t.product_name)?.category === cat).length;
             const total = transactions.length || 1;
             const percentage = Math.round((count / total) * 100);
@@ -992,7 +992,7 @@ export default function WuregStore() {
                           <>
                              <KodesetInput placeholder="Nama Produk" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
                              <KodesetInput type="number" placeholder="Harga" value={formData.price||''} onChange={(e:any)=>setFormData({...formData, price:e.target.value})} />
-                             <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Software</option></select>
+                             <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Jasa</option></select>
                              <KodesetInput placeholder="Image URL" value={formData.image_url||''} onChange={(e:any)=>setFormData({...formData, image_url:e.target.value})} />
                              <button onClick={()=>handleSaveItem('products', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Produk</button>
                           </>
