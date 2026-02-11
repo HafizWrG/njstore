@@ -436,7 +436,7 @@ export default function WuregStore() {
                       </div>
                   </div>
                   <div className="flex justify-between md:justify-center overflow-x-auto gap-2 mb-10 pb-4 md:pb-0 scrollbar-hide">
-                      {['All', 'Game', 'TopUp', 'Akun', 'Software'].map(c => (
+                      {['All', 'Game', 'TopUp', 'Akun', 'Software', 'Jasa'].map(c => (
                           <button key={c} onClick={()=>setSelectedCategory(c)} className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap ${selectedCategory===c ? 'bg-zinc-900 text-white shadow-lg' : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50'}`}>{c}</button>
                       ))}
                   </div>
