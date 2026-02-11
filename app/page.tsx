@@ -116,12 +116,14 @@ export default function WuregStore() {
   // Checkout
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const [checkoutStep, setCheckoutStep] = useState(1);
+  const [buyQuantity, setBuyQuantity] = useState(1);
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
   const [topUpForm, setTopUpForm] = useState({ userId: '', zoneId: '' });
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
   const [appliedVoucher, setAppliedVoucher] = useState<any>(null);
   const [voucherCode, setVoucherCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [customNote, setCustomNote] = useState('');
   
   // Staff & Admin
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
@@ -357,25 +359,44 @@ export default function WuregStore() {
   const handleCheckout = async () => {
     if(!selectedPayment) return showToast("Pilih pembayaran", "error");
     setIsSubmitting(true);
-    const finalPrice = Math.max(0, selectedProduct.price - (appliedVoucher?.amount || 0));
+    
+    // PRICE CALCULATION LOGIC
+    const basePrice = selectedProduct.price - (appliedVoucher?.amount || 0);
+    const finalCalculatedPrice = selectedProduct.category === 'Jasa' ? basePrice * buyQuantity : basePrice;
+
     const trxData = {
       buyer_name: buyerForm.name,
       buyer_email: buyerForm.email,
       product_name: selectedProduct.name,
-      price: finalPrice,
+      price: finalCalculatedPrice,
       payment_method: selectedPayment.name,
       status: 'Pending',
+      quantity: selectedProduct.category === 'Jasa' ? buyQuantity : 1,
+      notes: customNote,
       device_model: selectedProduct.category === 'TopUp' ? `${topUpForm.userId} (${topUpForm.zoneId})` : buyerForm.device_model
     };
+    
     const { data, error } = await supabase.from('transactions').insert([trxData]).select();
     if(!error) {
        const newId = data?.[0]?.id || 'NEW';
        const wa = contactMethods.find(c => c.platform_name.toLowerCase().includes('wa'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
-       const msg = `Halo Admin, Order Baru!\nID: ${newId}\nItem: ${selectedProduct.name}\nTotal: Rp ${finalPrice.toLocaleString()}\nVia: ${selectedPayment.name}\nDevice: ${trxData.device_model}`;
+       const msg = `🚀 *ORDER BARU - WUREGSTORE*\n\nID: #${newId}\nItem: ${selectedProduct.name}${buyQuantity > 1 ? ` (x${buyQuantity})` : ''}\nTotal: *Rp ${finalCalculatedPrice.toLocaleString()}*\nVia: ${selectedPayment.name}\n\n👤 Buyer: ${buyerForm.name}\n📱 Device: ${trxData.device_model}${customNote ? `\n📝 Note: ${customNote}` : ''}`;
        window.open(`${wa}?text=${encodeURIComponent(msg)}`, '_blank');
-       showToast("Order Berhasil!", "success"); setSelectedProduct(null); setCheckoutStep(1); setBuyerForm({ name: '', email: '', device_model: '' }); 
+       showToast("Order Berhasil!", "success"); 
+       setSelectedProduct(null); 
+       setCheckoutStep(1); 
+       setBuyerForm({ name: '', email: '', device_model: '' }); 
+       setBuyQuantity(1); 
+       setCustomNote('');
     } else showToast(error.message, "error");
     setIsSubmitting(false);
+  };
+
+  // Logic to calculate totals for the UI
+  const getDisplayTotal = () => {
+    if (!selectedProduct) return 0;
+    const base = selectedProduct.price - (appliedVoucher?.amount || 0);
+    return selectedProduct.category === 'Jasa' ? base * buyQuantity : base;
   };
 
   // --- RENDER ---
@@ -452,7 +473,7 @@ export default function WuregStore() {
               </div>
           )}
 
-          {/* --- PAGE: CASH OUT (PUBLICLY ACCESSIBLE) --- */}
+          {/* --- PAGE: CASH OUT --- */}
           {activePage === 'cashout' && (
               <div className="animate-in fade-in slide-in-from-bottom-8">
                   <div className="max-w-2xl mx-auto">
@@ -466,7 +487,6 @@ export default function WuregStore() {
                           </div>
 
                           <div className="space-y-6">
-                              {/* Tag Selection */}
                               <div>
                                   <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Pilih Tag</label>
                                   <div className="flex gap-2 mt-2">
@@ -478,7 +498,6 @@ export default function WuregStore() {
                                   </div>
                               </div>
 
-                              {/* Items List */}
                               <div className="space-y-3">
                                   <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Daftar Belanja</label>
                                   {cashOutForm.items.map((item, idx) => (
@@ -500,7 +519,6 @@ export default function WuregStore() {
                                   </button>
                               </div>
 
-                              {/* Total & Pay */}
                               <div className="pt-6 border-t border-zinc-100">
                                   <div className="flex justify-between items-end mb-4">
                                       <span className="text-sm text-zinc-500 font-bold">Total Pengeluaran</span>
@@ -548,160 +566,112 @@ export default function WuregStore() {
                               <button onClick={async()=>{await supabase.auth.signOut(); setIsStaffLoggedIn(false)}} className="p-2 text-red-500 hover:bg-red-50 rounded-xl"><LogOut size={18}/></button>
                           </div>
 
-                          {/* DASHBOARD */}
+                          {/* DASHBOARD TAB */}
                           {adminTab === 'dash' && (
-  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-    
-    {/* --- ROW 1: THE CORE FINANCIALS --- */}
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-      {/* Liquid Balance - Primary Action Card */}
-      <div className="md:col-span-2 bg-zinc-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden group">
-        <div className="relative z-10 flex flex-col h-full justify-between">
-          <div>
-            <div className="flex justify-between items-start">
-              <p className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em]">Total Shop Capital</p>
-              <Zap size={20} className="text-indigo-500 animate-pulse" />
-            </div>
-            <h3 className="text-4xl font-black mt-2">Rp {shopBalance.toLocaleString()}</h3>
-          </div>
-          <div className="flex gap-3 mt-8">
-            <button onClick={() => setModalType('topup_balance')} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl text-xs font-bold transition-all">
-              <Plus size={16} /> Top Up
-            </button>
-            <button onClick={() => setActivePage('cashout')} className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 py-3 rounded-2xl text-xs font-bold transition-all backdrop-blur-md">
-              <Receipt size={16} /> Cash Out
-            </button>
-          </div>
-        </div>
-        <Wallet className="absolute right-[-20px] bottom-[-20px] w-48 h-48 text-white/[0.03] group-hover:scale-110 transition-transform duration-700" />
-      </div>
+                            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                  {/* Liquidity Card */}
+                                  <div className="md:col-span-2 bg-zinc-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden group">
+                                     <div className="relative z-10 flex flex-col h-full justify-between">
+                                       <div>
+                                         <div className="flex justify-between items-start">
+                                           <p className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em]">Total Shop Capital</p>
+                                           <Zap size={20} className="text-indigo-500 animate-pulse" />
+                                         </div>
+                                         <h3 className="text-4xl font-black mt-2">Rp {shopBalance.toLocaleString()}</h3>
+                                       </div>
+                                       <div className="flex gap-3 mt-8">
+                                         <button onClick={() => setModalType('topup_balance')} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl text-xs font-bold transition-all">
+                                           <Plus size={16} /> Top Up
+                                         </button>
+                                         <button onClick={() => setActivePage('cashout')} className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 py-3 rounded-2xl text-xs font-bold transition-all backdrop-blur-md">
+                                           <Receipt size={16} /> Cash Out
+                                         </button>
+                                       </div>
+                                     </div>
+                                     <Wallet className="absolute right-[-20px] bottom-[-20px] w-48 h-48 text-white/[0.03] group-hover:scale-110 transition-transform duration-700" />
+                                  </div>
 
-      {/* Revenue Metric */}
-      <div className="bg-white p-6 rounded-[32px] border border-zinc-100 shadow-sm">
-        <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-4">
-          <TrendingUp size={20} />
-        </div>
-        <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Gross Sales</p>
-        <h3 className="text-2xl font-black text-zinc-900">Rp {transactions.reduce((a, b) => a + (b.price || 0), 0).toLocaleString()}</h3>
-        <div className="mt-2 text-[10px] font-bold text-emerald-500">+{transactions.filter(t => t.status === 'Selesai').length} Success Trx</div>
-      </div>
+                                  {/* Gross Sales */}
+                                  <div className="bg-white p-6 rounded-[32px] border border-zinc-100 shadow-sm flex flex-col justify-between">
+                                    <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-4">
+                                      <TrendingUp size={20} />
+                                    </div>
+                                    <div>
+                                      <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Gross Sales</p>
+                                      <h3 className="text-2xl font-black text-zinc-900">Rp {transactions.reduce((a, b) => a + (b.price || 0), 0).toLocaleString()}</h3>
+                                      <div className="mt-2 text-[10px] font-bold text-emerald-500">+{transactions.filter(t => t.status === 'Selesai').length} Success</div>
+                                    </div>
+                                  </div>
 
-      {/* Expense Metric */}
-      <div className="bg-white p-6 rounded-[32px] border border-zinc-100 shadow-sm">
-        <div className="w-10 h-10 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mb-4">
-          <History size={20} />
-        </div>
-        <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Total Expenses</p>
-        <h3 className="text-2xl font-black text-zinc-900">Rp {expenses.reduce((a, b) => a + (b.total_amount || 0), 0).toLocaleString()}</h3>
-        <div className="mt-2 text-[10px] font-bold text-red-400">{expenses.length} Anwaha/Syirkah Logs</div>
-      </div>
-    </div>
+                                  {/* Expenses */}
+                                  <div className="bg-white p-6 rounded-[32px] border border-zinc-100 shadow-sm flex flex-col justify-between">
+                                    <div className="w-10 h-10 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mb-4">
+                                      <History size={20} />
+                                    </div>
+                                    <div>
+                                      <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Total Expenses</p>
+                                      <h3 className="text-2xl font-black text-zinc-900">Rp {expenses.reduce((a, b) => a + (b.total_amount || 0), 0).toLocaleString()}</h3>
+                                      <div className="mt-2 text-[10px] font-bold text-red-400">{expenses.length} Log Entries</div>
+                                    </div>
+                                  </div>
+                               </div>
 
-    {/* --- ROW 2: ADVANCED ANALYTICS --- */}
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      
-      {/* Sales by Category Heatmap */}
-      <div className="bg-white rounded-[32px] p-8 border border-zinc-100 shadow-sm">
-        <h4 className="font-black text-zinc-900 mb-6 flex items-center gap-2">
-          <Monitor size={18} className="text-indigo-600" /> Category Performance
-        </h4>
-        <div className="space-y-5">
-          {['Game', 'TopUp', 'Akun', 'Software', 'Jasa'].map(cat => {
-            const count = transactions.filter(t => products.find(p => p.name === t.product_name)?.category === cat).length;
-            const total = transactions.length || 1;
-            const percentage = Math.round((count / total) * 100);
-            return (
-              <div key={cat} className="space-y-2">
-                <div className="flex justify-between text-xs font-bold">
-                  <span className="text-zinc-600">{cat}</span>
-                  <span className="text-zinc-900">{percentage}%</span>
-                </div>
-                <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-indigo-600 rounded-full transition-all duration-1000" 
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                  {/* Performance Heatmap */}
+                                  <div className="bg-white rounded-[32px] p-8 border border-zinc-100 shadow-sm">
+                                    <h4 className="font-black text-zinc-900 mb-6 flex items-center gap-2">
+                                      <Monitor size={18} className="text-indigo-600" /> Category Performance
+                                    </h4>
+                                    <div className="space-y-5">
+                                      {['Game', 'TopUp', 'Akun', 'Software', 'Jasa'].map(cat => {
+                                        const count = transactions.filter(t => products.find(p => p.name === t.product_name)?.category === cat).length;
+                                        const total = transactions.length || 1;
+                                        const pct = Math.round((count / total) * 100);
+                                        return (
+                                          <div key={cat} className="space-y-2">
+                                            <div className="flex justify-between text-xs font-bold uppercase tracking-wider">
+                                              <span className="text-zinc-500">{cat}</span>
+                                              <span className="text-zinc-900">{pct}%</span>
+                                            </div>
+                                            <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
+                                              <div className="h-full bg-indigo-600 transition-all duration-1000" style={{ width: `${pct}%` }} />
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
 
-      {/* System Health & Low Stock Monitor */}
-      <div className="bg-white rounded-[32px] p-8 border border-zinc-100 shadow-sm">
-        <h4 className="font-black text-zinc-900 mb-6 flex items-center gap-2">
-          <AlertCircle size={18} className="text-amber-500" /> Inventory Health
-        </h4>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
-            <p className="text-[10px] font-bold text-zinc-400 uppercase">Active Products</p>
-            <p className="text-2xl font-black text-zinc-900">{products.filter(p => p.is_ready).length}</p>
-          </div>
-          <div className="p-4 bg-red-50 rounded-2xl border border-red-100">
-            <p className="text-[10px] font-bold text-red-400 uppercase">Sold Out</p>
-            <p className="text-2xl font-black text-red-600">{products.filter(p => !p.is_ready).length}</p>
-          </div>
-          <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
-            <p className="text-[10px] font-bold text-indigo-400 uppercase">Total Vouchers</p>
-            <p className="text-2xl font-black text-indigo-600">{vouchers.length}</p>
-          </div>
-          <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
-            <p className="text-[10px] font-bold text-amber-500 uppercase">Pending Orders</p>
-            <p className="text-2xl font-black text-amber-600">{transactions.filter(t => t.status === 'Pending').length}</p>
-          </div>
-        </div>
-        
-        {/* Quick Staff Task */}
-        <div className="mt-6 p-4 bg-zinc-900 rounded-2xl flex items-center justify-between">
-          <div className="flex items-center gap-3">
-             <div className="p-2 bg-white/10 rounded-xl text-white"><Printer size={16}/></div>
-             <p className="text-white text-[11px] font-medium">Pending items need PDF export</p>
-          </div>
-          <button onClick={() => setAdminTab('trx')} className="text-indigo-400 text-[10px] font-bold hover:underline">Process Now</button>
-        </div>
-      </div>
+                                  {/* Inventory Health */}
+                                  <div className="bg-white rounded-[32px] p-8 border border-zinc-100 shadow-sm">
+                                    <h4 className="font-black text-zinc-900 mb-6 flex items-center gap-2">
+                                      <AlertCircle size={18} className="text-amber-500" /> Inventory Health
+                                    </h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                      <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                                        <p className="text-[10px] font-bold text-zinc-400 uppercase">Active</p>
+                                        <p className="text-2xl font-black text-zinc-900">{products.filter(p => p.is_ready).length}</p>
+                                      </div>
+                                      <div className="p-4 bg-red-50 rounded-2xl border border-red-100 text-red-600">
+                                        <p className="text-[10px] font-bold uppercase">Sold Out</p>
+                                        <p className="text-2xl font-black">{products.filter(p => !p.is_ready).length}</p>
+                                      </div>
+                                      <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 text-indigo-600">
+                                        <p className="text-[10px] font-bold uppercase">Vouchers</p>
+                                        <p className="text-2xl font-black">{vouchers.length}</p>
+                                      </div>
+                                      <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-amber-600">
+                                        <p className="text-[10px] font-bold uppercase">Queue</p>
+                                        <p className="text-2xl font-black">{transactions.filter(t => t.status === 'Pending').length}</p>
+                                      </div>
+                                    </div>
+                                  </div>
+                               </div>
+                            </div>
+                          )}
 
-    </div>
-
-    {/* --- ROW 3: RECENT TRANSACTION LOG --- */}
-    <div className="bg-white rounded-[32px] border border-zinc-100 shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-zinc-50 bg-zinc-50/30">
-        <h4 className="font-black text-zinc-900">Live Transaction Stream</h4>
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[11px] text-left">
-          <thead className="bg-zinc-50/50 text-zinc-400 font-bold uppercase tracking-widest">
-            <tr>
-              <th className="px-6 py-4">Customer</th>
-              <th className="px-6 py-4">Product</th>
-              <th className="px-6 py-4">Amount</th>
-              <th className="px-6 py-4">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-zinc-50">
-            {transactions.slice(0, 5).map((t, i) => (
-              <tr key={i} className="hover:bg-zinc-50 transition-colors">
-                <td className="px-6 py-4 font-bold text-zinc-800">{t.buyer_name}</td>
-                <td className="px-6 py-4 text-zinc-500">{t.product_name}</td>
-                <td className="px-6 py-4 font-black text-zinc-900">Rp {t.price.toLocaleString()}</td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${
-                    t.status === 'Selesai' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
-                  }`}>
-                    {t.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-)}
-
-                          {/* --- TAB PENGELUARAN (LAPORAN) --- */}
+                          {/* EXPENSE TAB */}
                           {adminTab === 'expense' && (
                               <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm overflow-hidden">
                                   <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
@@ -738,7 +708,7 @@ export default function WuregStore() {
                               </div>
                           )}
 
-                          {/* Transaction Table */}
+                          {/* ORDER/TRANSACTION TAB */}
                           {adminTab === 'trx' && (
                              <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm overflow-hidden">
                                   <div className="p-5 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
@@ -752,7 +722,7 @@ export default function WuregStore() {
                                                   <th className="p-4">ID / Date</th>
                                                   <th className="p-4">Buyer Info</th>
                                                   <th className="p-4">Item & Price</th>
-                                                  <th className="p-4">Device / Zone</th>
+                                                  <th className="p-4">Qty</th>
                                                   <th className="p-4">Method</th>
                                                   <th className="p-4">Status</th>
                                                   <th className="p-4 text-right">Action</th>
@@ -773,7 +743,7 @@ export default function WuregStore() {
                                                           <div className="font-bold text-zinc-800">{t.product_name}</div>
                                                           <div className="text-indigo-600 font-bold">Rp {t.price.toLocaleString()}</div>
                                                       </td>
-                                                      <td className="p-4 text-zinc-600">{t.device_model || '-'}</td>
+                                                      <td className="p-4 text-zinc-600">x{t.quantity || 1}</td>
                                                       <td className="p-4 uppercase text-xs font-bold text-zinc-500">{t.payment_method}</td>
                                                       <td className="p-4">
                                                           <select value={t.status} onChange={(e)=>handleStatusChange(t.id, e.target.value)} className={`text-[10px] font-bold uppercase py-1 px-2 rounded-lg border-none outline-none cursor-pointer ${t.status==='Selesai'?'bg-green-100 text-green-700':t.status==='Pending'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-700'}`}>
@@ -792,7 +762,7 @@ export default function WuregStore() {
                               </div>
                           )}
 
-                          {/* Products & Settings */}
+                          {/* PRODUCT TAB */}
                           {adminTab === 'prod' && (
                               <div className="space-y-4">
                                   <button onClick={()=>{setEditingItem(null); setFormData({}); setModalType('product');}} className="w-full py-4 border-2 border-dashed border-zinc-300 rounded-[24px] text-zinc-400 font-bold hover:border-indigo-500 hover:text-indigo-500 transition-colors bg-zinc-50">+ Tambah Produk</button>
@@ -814,6 +784,8 @@ export default function WuregStore() {
                                   </div>
                               </div>
                           )}
+
+                          {/* SETTING TAB */}
                           {adminTab === 'setting' && (
                               <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm p-6">
                                   <div className="flex gap-2 mb-6 border-b border-zinc-100 pb-4 overflow-x-auto">
@@ -906,7 +878,7 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* 1. PIN VERIFICATION MODAL */}
+      {/* PIN VERIFICATION MODAL */}
       {isPinModalOpen && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in zoom-in-95">
               <div className="bg-white w-full max-w-xs p-6 rounded-[24px] shadow-2xl text-center">
@@ -924,7 +896,7 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* 2. CHECKOUT MODAL (PRODUCT) */}
+      {/* CHECKOUT MODAL (PRODUCT) */}
       {selectedProduct && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-md p-0 md:p-4 animate-in fade-in">
               <div className="bg-white w-full md:max-w-md rounded-t-[32px] md:rounded-[32px] p-6 md:p-8 shadow-2xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-10">
@@ -936,20 +908,44 @@ export default function WuregStore() {
                           <h3 className="font-bold text-zinc-900 leading-tight text-lg">{selectedProduct.name}</h3>
                           <p className="text-indigo-600 font-bold">Rp {selectedProduct.price.toLocaleString()}</p>
                       </div>
-                      <button onClick={()=>setSelectedProduct(null)} className="ml-auto p-2 bg-zinc-100 rounded-full text-zinc-500"><X size={18}/></button>
+                      <button onClick={()=> { setSelectedProduct(null); setBuyQuantity(1); setAppliedVoucher(null); setVoucherCode(''); }} className="ml-auto p-2 bg-zinc-100 rounded-full text-zinc-500"><X size={18}/></button>
                   </div>
+
                   {checkoutStep === 1 ? (
                       <div className="space-y-4">
                           <KodesetInput placeholder="Nama Lengkap" value={buyerForm.name} onChange={(e:any)=>setBuyerForm({...buyerForm, name: e.target.value})} />
                           <KodesetInput placeholder="Email / WhatsApp" value={buyerForm.email} onChange={(e:any)=>setBuyerForm({...buyerForm, email: e.target.value})} />
-                          {selectedProduct.category === 'TopUp' ? (
+                          
+                          {selectedProduct.category === 'TopUp' && (
                               <div className="flex gap-3">
                                   <div className="flex-1"><KodesetInput placeholder="User ID" value={topUpForm.userId} onChange={(e:any)=>setTopUpForm({...topUpForm, userId: e.target.value})} /></div>
                                   <div className="w-28"><KodesetInput placeholder="Zone" value={topUpForm.zoneId} onChange={(e:any)=>setTopUpForm({...topUpForm, zoneId: e.target.value})} /></div>
                               </div>
-                          ) : selectedProduct.category === 'Akun' && (
+                          )}
+                          
+                          {selectedProduct.category === 'Akun' && (
                               <KodesetInput placeholder="Device (Android/iOS)" value={buyerForm.device_model} onChange={(e:any)=>setBuyerForm({...buyerForm, device_model: e.target.value})} />
                           )}
+
+                          {selectedProduct.category === 'Jasa' && (
+                              <div className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm font-bold text-zinc-600">Quantity / Durasi</span>
+                                  <div className="flex items-center gap-4">
+                                    <button onClick={() => setBuyQuantity(Math.max(1, buyQuantity - 1))} className="p-1 bg-white rounded-lg border border-zinc-200 shadow-sm"><MinusCircle size={20}/></button>
+                                    <span className="font-black text-lg w-6 text-center">{buyQuantity}</span>
+                                    <button onClick={() => setBuyQuantity(buyQuantity + 1)} className="p-1 bg-white rounded-lg border border-zinc-200 shadow-sm"><PlusCircle size={20}/></button>
+                                  </div>
+                                </div>
+                                <textarea 
+                                  className="w-full bg-white border border-zinc-200 rounded-xl p-3 text-sm font-medium outline-none focus:border-indigo-500 min-h-[80px]"
+                                  placeholder="Detail Pesanan / Request (Optional)"
+                                  value={customNote}
+                                  onChange={(e) => setCustomNote(e.target.value)}
+                                />
+                              </div>
+                          )}
+
                           <button onClick={()=>setCheckoutStep(2)} className="w-full py-4 mt-2 bg-zinc-900 text-white font-bold rounded-[20px] shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all">Lanjut Pembayaran</button>
                       </div>
                   ) : (
@@ -968,9 +964,26 @@ export default function WuregStore() {
                               ))}
                           </div>
                           <div className="p-5 bg-zinc-50 rounded-[24px] border border-zinc-100">
-                               <div className="flex justify-between text-sm mb-2 text-zinc-500"><span>Subtotal</span><span>Rp {selectedProduct.price.toLocaleString()}</span></div>
-                               {appliedVoucher && <div className="flex justify-between text-sm text-green-600 mb-2"><span>Diskon</span><span>- Rp {appliedVoucher.amount.toLocaleString()}</span></div>}
-                               <div className="flex justify-between text-xl font-black mt-2 pt-3 border-t border-dashed border-zinc-200"><span>Total</span><span className="text-indigo-600">Rp {(selectedProduct.price - (appliedVoucher?.amount||0)).toLocaleString()}</span></div>
+                               <div className="flex justify-between text-sm mb-1 text-zinc-500">
+                                  <span>Subtotal</span>
+                                  <span>Rp {selectedProduct.price.toLocaleString()}</span>
+                               </div>
+                               {selectedProduct.category === 'Jasa' && (
+                                 <div className="flex justify-between text-sm mb-1 text-zinc-500">
+                                    <span>Quantity</span>
+                                    <span>x{buyQuantity}</span>
+                                 </div>
+                               )}
+                               {appliedVoucher && (
+                                  <div className="flex justify-between text-sm text-green-600 mb-1">
+                                     <span>Diskon</span>
+                                     <span>- Rp {appliedVoucher.amount.toLocaleString()}</span>
+                                  </div>
+                               )}
+                               <div className="flex justify-between text-xl font-black mt-2 pt-3 border-t border-dashed border-zinc-200">
+                                  <span>Total</span>
+                                  <span className="text-indigo-600">Rp {getDisplayTotal().toLocaleString()}</span>
+                               </div>
                           </div>
                           <div className="flex gap-3 pt-2">
                               <button onClick={()=>setCheckoutStep(1)} className="flex-1 py-4 bg-white border border-zinc-200 font-bold rounded-[20px] text-zinc-600 hover:bg-zinc-50">Kembali</button>
@@ -982,7 +995,7 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* 3. CRUD MODAL */}
+      {/* CRUD MODAL */}
       {modalType && !['invoice', 'expense_detail', 'topup_balance'].includes(modalType) && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-md p-4">
               <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
@@ -992,7 +1005,7 @@ export default function WuregStore() {
                           <>
                              <KodesetInput placeholder="Nama Produk" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
                              <KodesetInput type="number" placeholder="Harga" value={formData.price||''} onChange={(e:any)=>setFormData({...formData, price:e.target.value})} />
-                             <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Jasa</option></select>
+                             <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Software</option><option>Jasa</option></select>
                              <KodesetInput placeholder="Image URL" value={formData.image_url||''} onChange={(e:any)=>setFormData({...formData, image_url:e.target.value})} />
                              <button onClick={()=>handleSaveItem('products', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Produk</button>
                           </>
@@ -1036,7 +1049,7 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* 4. EXPENSE DETAIL MODAL */}
+      {/* EXPENSE DETAIL MODAL */}
       {modalType === 'expense_detail' && detailExpense && (
           <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
              <div className="bg-white w-full max-w-[340px] relative shadow-2xl rounded-none overflow-hidden">
@@ -1074,7 +1087,7 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* 5. INVOICE MODAL (TRANSACTION) */}
+      {/* INVOICE MODAL (TRANSACTION) */}
       {modalType === 'invoice' && detailTrx && (
          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in">
              <div className="bg-white w-full max-w-[340px] relative shadow-2xl rounded-none overflow-hidden">
@@ -1095,7 +1108,10 @@ export default function WuregStore() {
                      </div>
                      <div className="border-t-2 border-dashed border-zinc-300 py-4">
                          <div className="font-bold text-sm mb-1 text-zinc-800">{detailTrx.product_name}</div>
-                         <div className="flex justify-between text-zinc-500"><span>1 x {detailTrx.price.toLocaleString()}</span><span>{detailTrx.price.toLocaleString()}</span></div>
+                         <div className="flex justify-between text-zinc-500">
+                            <span>{detailTrx.quantity || 1} x {(detailTrx.price / (detailTrx.quantity || 1)).toLocaleString()}</span>
+                            <span>{detailTrx.price.toLocaleString()}</span>
+                         </div>
                      </div>
                      <div className="border-t-2 border-zinc-900 pt-3 flex justify-between text-lg font-black"><span>TOTAL</span><span>Rp {detailTrx.price.toLocaleString()}</span></div>
                      <div className="mt-8 text-center space-y-1"><p className="text-[10px] text-zinc-400">TERIMA KASIH TELAH BERBELANJA</p></div>
@@ -1111,7 +1127,7 @@ export default function WuregStore() {
          </div>
       )}
 
-      {/* Support Modal */}
+      {/* Hubungi Kami Modal */}
       {isContactModalOpen && (
           <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-sm rounded-[32px] p-6 shadow-2xl relative">
