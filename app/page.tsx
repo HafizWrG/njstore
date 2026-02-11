@@ -550,27 +550,156 @@ export default function WuregStore() {
 
                           {/* DASHBOARD */}
                           {adminTab === 'dash' && (
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div className="bg-gradient-to-br from-indigo-600 to-violet-600 p-6 rounded-[24px] text-white shadow-xl relative overflow-hidden group">
-                                      <div className="relative z-10">
-                                        <p className="text-indigo-100 text-xs font-bold uppercase tracking-wider mb-2">Saldo Toko (Admin)</p>
-                                        <h3 className="text-3xl font-bold mb-4">Rp {shopBalance.toLocaleString()}</h3>
-                                        <button onClick={()=>setModalType('topup_balance')} className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-xs font-bold transition-all backdrop-blur-sm">
-                                            <ArrowUpCircle size={14}/> Top Up Saldo
-                                        </button>
-                                      </div>
-                                      <TrendingUp className="absolute right-[-10px] bottom-[-10px] w-32 h-32 text-white/10 group-hover:scale-110 transition-transform" />
-                                  </div>
-                                  <div className="bg-zinc-900 p-6 rounded-[24px] text-white shadow-xl">
-                                      <p className="text-zinc-400 text-xs font-bold uppercase tracking-wider mb-2">Total Penjualan</p>
-                                      <h3 className="text-3xl font-bold">Rp {transactions.reduce((a,b)=>a+(b.price||0),0).toLocaleString()}</h3>
-                                  </div>
-                                  <div className="bg-white p-6 rounded-[24px] border border-zinc-100 shadow-sm">
-                                      <p className="text-zinc-400 text-xs font-bold uppercase mb-2">Total Produk</p>
-                                      <h3 className="text-3xl font-bold text-zinc-900">{products.length}</h3>
-                                  </div>
-                              </div>
-                          )}
+  <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    
+    {/* --- ROW 1: THE CORE FINANCIALS --- */}
+    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Liquid Balance - Primary Action Card */}
+      <div className="md:col-span-2 bg-zinc-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden group">
+        <div className="relative z-10 flex flex-col h-full justify-between">
+          <div>
+            <div className="flex justify-between items-start">
+              <p className="text-zinc-400 text-xs font-bold uppercase tracking-[0.2em]">Total Shop Capital</p>
+              <Zap size={20} className="text-indigo-500 animate-pulse" />
+            </div>
+            <h3 className="text-4xl font-black mt-2">Rp {shopBalance.toLocaleString()}</h3>
+          </div>
+          <div className="flex gap-3 mt-8">
+            <button onClick={() => setModalType('topup_balance')} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl text-xs font-bold transition-all">
+              <Plus size={16} /> Top Up
+            </button>
+            <button onClick={() => setActivePage('cashout')} className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 py-3 rounded-2xl text-xs font-bold transition-all backdrop-blur-md">
+              <Receipt size={16} /> Cash Out
+            </button>
+          </div>
+        </div>
+        <Wallet className="absolute right-[-20px] bottom-[-20px] w-48 h-48 text-white/[0.03] group-hover:scale-110 transition-transform duration-700" />
+      </div>
+
+      {/* Revenue Metric */}
+      <div className="bg-white p-6 rounded-[32px] border border-zinc-100 shadow-sm">
+        <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-4">
+          <TrendingUp size={20} />
+        </div>
+        <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Gross Sales</p>
+        <h3 className="text-2xl font-black text-zinc-900">Rp {transactions.reduce((a, b) => a + (b.price || 0), 0).toLocaleString()}</h3>
+        <div className="mt-2 text-[10px] font-bold text-emerald-500">+{transactions.filter(t => t.status === 'Selesai').length} Success Trx</div>
+      </div>
+
+      {/* Expense Metric */}
+      <div className="bg-white p-6 rounded-[32px] border border-zinc-100 shadow-sm">
+        <div className="w-10 h-10 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mb-4">
+          <History size={20} />
+        </div>
+        <p className="text-zinc-400 text-[10px] font-bold uppercase tracking-wider">Total Expenses</p>
+        <h3 className="text-2xl font-black text-zinc-900">Rp {expenses.reduce((a, b) => a + (b.total_amount || 0), 0).toLocaleString()}</h3>
+        <div className="mt-2 text-[10px] font-bold text-red-400">{expenses.length} Anwaha/Syirkah Logs</div>
+      </div>
+    </div>
+
+    {/* --- ROW 2: ADVANCED ANALYTICS --- */}
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      
+      {/* Sales by Category Heatmap */}
+      <div className="bg-white rounded-[32px] p-8 border border-zinc-100 shadow-sm">
+        <h4 className="font-black text-zinc-900 mb-6 flex items-center gap-2">
+          <Monitor size={18} className="text-indigo-600" /> Category Performance
+        </h4>
+        <div className="space-y-5">
+          {['Game', 'TopUp', 'Akun', 'Software'].map(cat => {
+            const count = transactions.filter(t => products.find(p => p.name === t.product_name)?.category === cat).length;
+            const total = transactions.length || 1;
+            const percentage = Math.round((count / total) * 100);
+            return (
+              <div key={cat} className="space-y-2">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-zinc-600">{cat}</span>
+                  <span className="text-zinc-900">{percentage}%</span>
+                </div>
+                <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-indigo-600 rounded-full transition-all duration-1000" 
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* System Health & Low Stock Monitor */}
+      <div className="bg-white rounded-[32px] p-8 border border-zinc-100 shadow-sm">
+        <h4 className="font-black text-zinc-900 mb-6 flex items-center gap-2">
+          <AlertCircle size={18} className="text-amber-500" /> Inventory Health
+        </h4>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+            <p className="text-[10px] font-bold text-zinc-400 uppercase">Active Products</p>
+            <p className="text-2xl font-black text-zinc-900">{products.filter(p => p.is_ready).length}</p>
+          </div>
+          <div className="p-4 bg-red-50 rounded-2xl border border-red-100">
+            <p className="text-[10px] font-bold text-red-400 uppercase">Sold Out</p>
+            <p className="text-2xl font-black text-red-600">{products.filter(p => !p.is_ready).length}</p>
+          </div>
+          <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+            <p className="text-[10px] font-bold text-indigo-400 uppercase">Total Vouchers</p>
+            <p className="text-2xl font-black text-indigo-600">{vouchers.length}</p>
+          </div>
+          <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100">
+            <p className="text-[10px] font-bold text-amber-500 uppercase">Pending Orders</p>
+            <p className="text-2xl font-black text-amber-600">{transactions.filter(t => t.status === 'Pending').length}</p>
+          </div>
+        </div>
+        
+        {/* Quick Staff Task */}
+        <div className="mt-6 p-4 bg-zinc-900 rounded-2xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+             <div className="p-2 bg-white/10 rounded-xl text-white"><Printer size={16}/></div>
+             <p className="text-white text-[11px] font-medium">Pending items need PDF export</p>
+          </div>
+          <button onClick={() => setAdminTab('trx')} className="text-indigo-400 text-[10px] font-bold hover:underline">Process Now</button>
+        </div>
+      </div>
+
+    </div>
+
+    {/* --- ROW 3: RECENT TRANSACTION LOG --- */}
+    <div className="bg-white rounded-[32px] border border-zinc-100 shadow-sm overflow-hidden">
+      <div className="p-6 border-b border-zinc-50 bg-zinc-50/30">
+        <h4 className="font-black text-zinc-900">Live Transaction Stream</h4>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px] text-left">
+          <thead className="bg-zinc-50/50 text-zinc-400 font-bold uppercase tracking-widest">
+            <tr>
+              <th className="px-6 py-4">Customer</th>
+              <th className="px-6 py-4">Product</th>
+              <th className="px-6 py-4">Amount</th>
+              <th className="px-6 py-4">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-zinc-50">
+            {transactions.slice(0, 5).map((t, i) => (
+              <tr key={i} className="hover:bg-zinc-50 transition-colors">
+                <td className="px-6 py-4 font-bold text-zinc-800">{t.buyer_name}</td>
+                <td className="px-6 py-4 text-zinc-500">{t.product_name}</td>
+                <td className="px-6 py-4 font-black text-zinc-900">Rp {t.price.toLocaleString()}</td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-1 rounded-md text-[9px] font-black uppercase ${
+                    t.status === 'Selesai' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'
+                  }`}>
+                    {t.status}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+)}
 
                           {/* --- TAB PENGELUARAN (LAPORAN) --- */}
                           {adminTab === 'expense' && (
