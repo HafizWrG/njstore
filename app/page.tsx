@@ -7,7 +7,8 @@ import {
   Search, MessageCircle, LogOut, Trash2, Edit3, Eye, CheckCircle, 
   AlertCircle, RefreshCw, Plus, Monitor, FileSpreadsheet, Gamepad2, 
   Home, User, X, Zap, Settings, ToggleLeft, ToggleRight, Printer, 
-  Image as ImageIcon, Wallet, MinusCircle, PlusCircle, History, Receipt, Lock, ExternalLink, TrendingUp, ArrowUpCircle
+  Image as ImageIcon, Wallet, MinusCircle, PlusCircle, History, Receipt, Lock, ExternalLink, TrendingUp, ArrowUpCircle,
+  Smartphone, Download, Star, Upload, Info, LayoutGrid, XCircle
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -16,9 +17,16 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
 const ADMIN_PHONE_FALLBACK = "6281528483575";
 const STORE_LOGO = "https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383";
-const CASH_OUT_PIN = "31082007"; // PIN RAHASIA
+const CASH_OUT_PIN = "31082007"; 
 
 const supabase = createClient(supabaseUrl, supabaseKey);
+
+// --- HELPER ---
+const formatExternalUrl = (url: string) => {
+    if (!url) return '#';
+    if (url.startsWith('http://') || url.startsWith('https://')) return url;
+    return `https://${url}`;
+};
 
 // --- COMPONENTS ---
 const Background = () => (
@@ -39,6 +47,82 @@ const KodesetInput = ({ icon: Icon, ...props }: any) => (
     />
   </div>
 );
+
+const FileUploadField = ({ label, value, onChange, onUpload, isUploading, bucket = 'store_assets', accept="image/*,.apk,.zip" }: any) => {
+    return (
+        <div className="space-y-2">
+            <label className="text-xs font-bold text-zinc-500 ml-1">{label}</label>
+            <div className="flex gap-2">
+                <input 
+                    type="text" 
+                    placeholder="URL (or upload file)" 
+                    value={value || ''} 
+                    onChange={(e) => onChange(e.target.value)}
+                    className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-3 font-medium text-sm text-zinc-800 outline-none focus:border-indigo-500"
+                />
+                <div className="relative">
+                    <button type="button" disabled={isUploading} className="h-full px-4 bg-zinc-100 border border-zinc-200 rounded-xl text-zinc-600 hover:bg-zinc-200 flex items-center justify-center disabled:opacity-50">
+                        {isUploading ? <RefreshCw size={18} className="animate-spin" /> : <Upload size={18} />}
+                    </button>
+                    <input 
+                        type="file" 
+                        accept={accept} 
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                        onChange={(e) => onUpload(e, bucket)}
+                        disabled={isUploading}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// NEW: Multiple File Upload Component for Screenshots
+const MultipleFileUploadField = ({ label, urls = [], onChange, onUploadMultiple, isUploading, bucket = 'store_assets' }: any) => {
+    const handleRemove = (index: number) => {
+        const newUrls = [...urls];
+        newUrls.splice(index, 1);
+        onChange(newUrls);
+    };
+
+    return (
+        <div className="space-y-2 bg-zinc-50 p-4 rounded-2xl border border-zinc-200">
+            <div className="flex justify-between items-center mb-2">
+                <label className="text-xs font-bold text-zinc-500 ml-1">{label}</label>
+                <div className="relative overflow-hidden">
+                    <button type="button" disabled={isUploading} className="px-3 py-1.5 bg-blue-100 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-200 flex items-center gap-2 disabled:opacity-50">
+                        {isUploading ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />} Add Screenshots
+                    </button>
+                    <input 
+                        type="file" 
+                        multiple
+                        accept="image/*" 
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full" 
+                        onChange={(e) => onUploadMultiple(e, bucket)}
+                        disabled={isUploading}
+                    />
+                </div>
+            </div>
+            
+            {urls.length > 0 ? (
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                    {urls.map((url: string, idx: number) => (
+                        <div key={idx} className="relative w-24 h-40 shrink-0 rounded-xl overflow-hidden border border-zinc-200 bg-white group">
+                            <img src={url} alt={`Screenshot ${idx+1}`} className="w-full h-full object-cover" />
+                            <button onClick={() => handleRemove(idx)} className="absolute top-1 right-1 p-1 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500">
+                                <X size={12} />
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-6 text-zinc-400 text-xs font-medium border-2 border-dashed border-zinc-200 rounded-xl">
+                    No screenshots added yet.
+                </div>
+            )}
+        </div>
+    );
+};
 
 const KodesetProductCard = ({ product, onClick }: any) => {
     const isReady = product.is_ready;
@@ -98,9 +182,11 @@ export default function WuregStore() {
   const [toast, setToast] = useState<{msg: string, type: 'success'|'error'} | null>(null);
   const [isContactModalOpen, setIsContactModalOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
 
   // Data State
   const [products, setProducts] = useState<any[]>([]);
+  const [apps, setApps] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [vouchers, setVouchers] = useState<any[]>([]);
@@ -111,10 +197,12 @@ export default function WuregStore() {
 
   // Filter
   const [searchQuery, setSearchQuery] = useState('');
+  const [appSearchQuery, setAppSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Checkout
+  // Checkout & App Store Specifics
   const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedApp, setSelectedApp] = useState<any>(null);
   const [checkoutStep, setCheckoutStep] = useState(1);
   const [buyQuantity, setBuyQuantity] = useState(1);
   const [buyerForm, setBuyerForm] = useState({ name: '', email: '', device_model: '' });
@@ -129,7 +217,7 @@ export default function WuregStore() {
   const [isStaffLoggedIn, setIsStaffLoggedIn] = useState(false);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
-  const [adminTab, setAdminTab] = useState<'dash' | 'trx' | 'prod' | 'setting' | 'expense'>('dash'); 
+  const [adminTab, setAdminTab] = useState<'dash' | 'trx' | 'prod' | 'apps' | 'setting' | 'expense'>('dash'); 
   const [settingSubTab, setSettingSubTab] = useState<'payment' | 'voucher' | 'social'>('payment');
   
   // Cash Out & Top Up Specifics
@@ -143,7 +231,7 @@ export default function WuregStore() {
   });
 
   // CRUD & Modals
-  const [modalType, setModalType] = useState<'product' | 'payment' | 'voucher' | 'contact' | 'invoice' | 'expense_detail' | 'topup_balance' | null>(null);
+  const [modalType, setModalType] = useState<'product' | 'app' | 'payment' | 'voucher' | 'contact' | 'invoice' | 'expense_detail' | 'topup_balance' | null>(null);
   const [editingItem, setEditingItem] = useState<any>(null); 
   const [detailTrx, setDetailTrx] = useState<any>(null);
   const [detailExpense, setDetailExpense] = useState<any>(null); 
@@ -157,15 +245,68 @@ export default function WuregStore() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucketName: string, fieldName: string) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      
+      setIsUploading(true);
+      try {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const filePath = `${fileName}`;
+          
+          const { error: uploadError } = await supabase.storage.from(bucketName).upload(filePath, file);
+          if (uploadError) throw uploadError;
+          
+          const { data } = supabase.storage.from(bucketName).getPublicUrl(filePath);
+          setFormData({ ...formData, [fieldName]: data.publicUrl });
+          showToast("File uploaded successfully", "success");
+      } catch (error: any) {
+          showToast(`Upload failed: ${error.message}. Please check bucket settings.`, "error");
+      } finally {
+          setIsUploading(false);
+      }
+  };
+
+  // Upload Multiple Screenshots Handler
+  const handleMultipleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucketName: string) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      
+      setIsUploading(true);
+      try {
+          const urls = [];
+          for (const file of files) {
+              const fileExt = file.name.split('.').pop();
+              const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+              const { error } = await supabase.storage.from(bucketName).upload(fileName, file);
+              if (error) throw error;
+              
+              const { data } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+              urls.push(data.publicUrl);
+          }
+          
+          const currentScreenshots = formData.screenshots || [];
+          setFormData({ ...formData, screenshots: [...currentScreenshots, ...urls] });
+          showToast(`${files.length} screenshots uploaded`, "success");
+      } catch (error: any) {
+          showToast(`Upload failed: ${error.message}`, "error");
+      } finally {
+          setIsUploading(false);
+      }
+  };
+
   const fetchPublicData = async () => {
     setIsLoading(true);
-    const [p, pm, cm, bal] = await Promise.all([
+    const [p, a, pm, cm, bal] = await Promise.all([
       supabase.from('products').select('*').order('created_at', {ascending: false}),
+      supabase.from('wda_apps').select('*').order('created_at', {ascending: false}), 
       supabase.from('payment_methods').select('*').eq('is_active', true).order('created_at', {ascending: true}),
       supabase.from('contact_methods').select('*').eq('is_active', true),
       supabase.from('shop_balance').select('*').eq('id', 1).single() 
     ]);
     if(p.data) setProducts(p.data);
+    if(a.data) setApps(a.data);
     if(pm.data) setPaymentMethods(pm.data);
     if(cm.data) setContactMethods(cm.data);
     if(bal.data) setShopBalance(bal.data.current_balance);
@@ -174,14 +315,18 @@ export default function WuregStore() {
 
   const refreshAdminData = async () => {
     if (!isStaffLoggedIn) return;
-    const [t, v, pmAll, cmAll, exp] = await Promise.all([
+    const [t, p, a, v, pmAll, cmAll, exp] = await Promise.all([
       supabase.from('transactions').select('*').order('created_at', {ascending: false}),
+      supabase.from('products').select('*').order('created_at', {ascending: false}),
+      supabase.from('wda_apps').select('*').order('created_at', {ascending: false}),
       supabase.from('vouchers').select('*').order('created_at', {ascending: false}),
       supabase.from('payment_methods').select('*').order('created_at', {ascending: true}),
       supabase.from('contact_methods').select('*').order('created_at', {ascending: true}),
       supabase.from('expenses').select('*').order('created_at', {ascending: false})
     ]);
     if(t.data) setTransactions(t.data);
+    if(p.data) setProducts(p.data);
+    if(a.data) setApps(a.data);
     if(v.data) setVouchers(v.data);
     if(pmAll.data) setPaymentMethods(pmAll.data); 
     if(cmAll.data) setContactMethods(cmAll.data);
@@ -334,7 +479,12 @@ export default function WuregStore() {
       if(!ref.current) return;
       setIsGenerating(true);
       try {
-          const canvas = await html2canvas(ref.current, { scale: 3, useCORS: true, backgroundColor: '#ffffff' });
+          const canvas = await html2canvas(ref.current, { 
+              scale: 3, 
+              useCORS: true, 
+              allowTaint: true,
+              backgroundColor: '#ffffff' 
+          });
           if(type === 'jpg') {
               const link = document.createElement('a');
               link.download = `${filename}.jpg`;
@@ -380,8 +530,9 @@ export default function WuregStore() {
     if(!error) {
        const newId = data?.[0]?.id || 'NEW';
        const wa = contactMethods.find(c => c.platform_name.toLowerCase().includes('wa'))?.url || `https://wa.me/${ADMIN_PHONE_FALLBACK}`;
+       const parsedWa = formatExternalUrl(wa);
        const msg = `🚀 *ORDER BARU - WUREGSTORE*\n\nID: #${newId}\nItem: ${selectedProduct.name}${buyQuantity > 1 ? ` (x${buyQuantity})` : ''}\nTotal: *Rp ${finalCalculatedPrice.toLocaleString()}*\nVia: ${selectedPayment.name}\n\n👤 Buyer: ${buyerForm.name}\n📱 Device: ${trxData.device_model}${customNote ? `\n📝 Note: ${customNote}` : ''}`;
-       window.open(`${wa}?text=${encodeURIComponent(msg)}`, '_blank');
+       window.open(`${parsedWa}?text=${encodeURIComponent(msg)}`, '_blank');
        showToast("Order Berhasil!", "success"); 
        setSelectedProduct(null); 
        setCheckoutStep(1); 
@@ -399,6 +550,13 @@ export default function WuregStore() {
     return selectedProduct.category === 'Jasa' ? base * buyQuantity : base;
   };
 
+  // Get Platform Icon Helper
+  const getPlatformIcon = (platform: string) => {
+      if (platform === 'Windows') return <Monitor size={14} className="text-blue-500" />;
+      if (platform === 'Android') return <Smartphone size={14} className="text-green-500" />;
+      return <LayoutGrid size={14} className="text-zinc-500" />;
+  };
+
   // --- RENDER ---
   return (
     <div className="min-h-screen font-sans text-zinc-800 pb-24 md:pb-0 selection:bg-indigo-100 selection:text-indigo-600">
@@ -414,9 +572,9 @@ export default function WuregStore() {
               <span className="font-bold text-lg tracking-tight">WuregStore</span>
           </div>
           <div className="flex items-center gap-1 bg-zinc-100/50 p-1.5 rounded-full">
-              {['home', 'cashout', 'staff'].map(page => (
+              {['home', 'appstore', 'cashout', 'staff'].map(page => (
                   <button key={page} onClick={()=>setActivePage(page)} className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activePage===page ? 'bg-white text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}>
-                      {page === 'home' ? 'Store' : page === 'cashout' ? 'Cash Out' : 'Staff Portal'}
+                      {page === 'home' ? 'Store' : page === 'appstore' ? 'WDA Store' : page === 'cashout' ? 'Cash Out' : 'Staff Portal'}
                   </button>
               ))}
           </div>
@@ -427,14 +585,17 @@ export default function WuregStore() {
 
       {/* MOBILE NAV */}
       <nav className="md:hidden fixed bottom-6 left-6 right-6 z-50 bg-white/80 backdrop-blur-xl border border-white/50 p-2 rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.1)]">
-          <div className="flex justify-between items-center px-4">
-              <button onClick={()=>setActivePage('home')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='home' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
+          <div className="flex justify-between items-center px-2">
+              <button onClick={()=>setActivePage('home')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage==='home' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
                   <Home size={22} strokeWidth={activePage==='home' ? 2.5 : 2} />
               </button>
-              <button onClick={()=>setActivePage('cashout')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='cashout' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
+              <button onClick={()=>setActivePage('appstore')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage==='appstore' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
+                  <Smartphone size={22} strokeWidth={activePage==='appstore' ? 2.5 : 2} />
+              </button>
+              <button onClick={()=>setActivePage('cashout')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage==='cashout' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
                   <Wallet size={22} strokeWidth={activePage==='cashout' ? 2.5 : 2} />
               </button>
-              <button onClick={()=>setActivePage('staff')} className={`flex flex-col items-center justify-center w-20 h-14 rounded-2xl transition-all ${activePage==='staff' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
+              <button onClick={()=>setActivePage('staff')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage==='staff' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
                   <User size={22} strokeWidth={activePage==='staff' ? 2.5 : 2} />
               </button>
           </div>
@@ -445,7 +606,7 @@ export default function WuregStore() {
           {activePage === 'home' && (
               <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
                   <div className="md:hidden flex items-center gap-3 mb-8 mt-2">
-                     <img src={STORE_LOGO} className="w-10 h-10 rounded-full bg-zinc-100" alt="logo"/>
+                     <img src={STORE_LOGO} className="w-10 h-10 rounded-full bg-zinc-100 object-cover" alt="logo"/>
                      <h1 className="font-bold text-xl text-zinc-900">WuregStore</h1>
                   </div>
                   <div className="text-center mb-12">
@@ -467,6 +628,61 @@ export default function WuregStore() {
                       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 md:gap-6">
                           {products.filter(p => (selectedCategory === 'All' || p.category === selectedCategory) && p.name.toLowerCase().includes(searchQuery.toLowerCase())).map(p => (
                               <KodesetProductCard key={p.id} product={p} onClick={(prod: any) => { setSelectedProduct(prod); setCheckoutStep(1); }} />
+                          ))}
+                      </div>
+                  )}
+              </div>
+          )}
+
+          {/* PAGE: WDA STORE (APP STORE) */}
+          {activePage === 'appstore' && (
+              <div className="animate-in fade-in slide-in-from-bottom-8 duration-700">
+                  <div className="md:hidden flex items-center gap-3 mb-8 mt-2">
+                     <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white">
+                         <LayoutGrid size={20}/>
+                     </div>
+                     <h1 className="font-bold text-xl text-zinc-900">WDA Store</h1>
+                  </div>
+                  <div className="flex flex-col md:flex-row gap-6 mb-10 items-center justify-between">
+                      <div>
+                          <h2 className="text-3xl md:text-5xl font-black text-zinc-900 tracking-tight mb-2">Discover <span className="text-blue-600">Great Apps.</span></h2>
+                          <p className="text-zinc-500 font-medium">Download the best apps directly from WDA Store.</p>
+                      </div>
+                      <div className="w-full md:w-auto relative group">
+                         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-zinc-400"><Search size={20}/></div>
+                         <input className="w-full md:w-80 py-4 pl-12 pr-4 bg-white border border-zinc-200 rounded-2xl font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all shadow-sm" placeholder="Search apps, games..." value={appSearchQuery} onChange={e=>setAppSearchQuery(e.target.value)}/>
+                      </div>
+                  </div>
+
+                  {isLoading ? (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">{[1,2,3].map(i => <div key={i} className="h-40 bg-zinc-200/50 rounded-[24px] animate-pulse"/>)}</div>
+                  ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {apps.filter(a => a.name.toLowerCase().includes(appSearchQuery.toLowerCase())).map(app => (
+                              <div key={app.id} onClick={() => setSelectedApp(app)} className="bg-white p-5 rounded-[24px] border border-zinc-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex gap-5 items-center group relative overflow-hidden">
+                                  {/* Platform Badge */}
+                                  <div className="absolute top-0 right-0 px-3 py-1 bg-zinc-50 border-b border-l border-zinc-100 rounded-bl-[16px] flex items-center gap-1 shadow-sm">
+                                      {getPlatformIcon(app.platform)}
+                                      <span className="text-[10px] font-bold text-zinc-500">{app.platform || 'Cross'}</span>
+                                  </div>
+
+                                  <div className="w-20 h-20 rounded-[20px] bg-zinc-100 overflow-hidden shadow-sm shrink-0">
+                                      {app.icon_url ? <img src={app.icon_url} className="w-full h-full object-cover" alt={app.name}/> : <div className="w-full h-full flex items-center justify-center bg-blue-50 text-blue-500 font-bold text-2xl">{app.name[0]}</div>}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                      <h3 className="font-bold text-lg text-zinc-900 truncate group-hover:text-blue-600 transition-colors pr-10">{app.name}</h3>
+                                      <p className="text-xs text-zinc-500 truncate mb-2">{app.developer}</p>
+                                      <div className="flex items-center justify-between">
+                                          <div className="flex items-center gap-1 bg-zinc-50 px-2 py-1 rounded-lg">
+                                              <Star size={12} className="text-amber-400 fill-amber-400" />
+                                              <span className="text-[10px] font-bold text-zinc-600">{app.rating || '4.8'}</span>
+                                          </div>
+                                          <button className="px-4 py-1.5 bg-zinc-100 text-blue-600 font-bold text-xs rounded-full hover:bg-blue-600 hover:text-white transition-all">
+                                              {app.price > 0 ? `Rp ${app.price.toLocaleString()}` : 'Get'}
+                                          </button>
+                                      </div>
+                                  </div>
+                              </div>
                           ))}
                       </div>
                   )}
@@ -557,6 +773,7 @@ export default function WuregStore() {
                                       {id:'dash',l:'Dash',i:Monitor}, 
                                       {id:'trx',l:'Order',i:FileSpreadsheet}, 
                                       {id:'prod',l:'Produk',i:Gamepad2}, 
+                                      {id:'apps',l:'WDA Apps',i:Smartphone}, 
                                       {id:'setting',l:'Set',i:Settings},
                                       {id:'expense', l:'Pengeluaran', i:Receipt} 
                                   ].map(m => (
@@ -650,16 +867,16 @@ export default function WuregStore() {
                                     </h4>
                                     <div className="grid grid-cols-2 gap-4">
                                       <div className="p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
-                                        <p className="text-[10px] font-bold text-zinc-400 uppercase">Active</p>
+                                        <p className="text-[10px] font-bold text-zinc-400 uppercase">Active Products</p>
                                         <p className="text-2xl font-black text-zinc-900">{products.filter(p => p.is_ready).length}</p>
                                       </div>
                                       <div className="p-4 bg-red-50 rounded-2xl border border-red-100 text-red-600">
                                         <p className="text-[10px] font-bold uppercase">Sold Out</p>
                                         <p className="text-2xl font-black">{products.filter(p => !p.is_ready).length}</p>
                                       </div>
-                                      <div className="p-4 bg-indigo-50 rounded-2xl border border-indigo-100 text-indigo-600">
-                                        <p className="text-[10px] font-bold uppercase">Vouchers</p>
-                                        <p className="text-2xl font-black">{vouchers.length}</p>
+                                      <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 text-blue-600">
+                                        <p className="text-[10px] font-bold uppercase">Active Apps</p>
+                                        <p className="text-2xl font-black">{apps.length}</p>
                                       </div>
                                       <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-amber-600">
                                         <p className="text-[10px] font-bold uppercase">Queue</p>
@@ -785,6 +1002,34 @@ export default function WuregStore() {
                               </div>
                           )}
 
+                          {/* APPS TAB */}
+                          {adminTab === 'apps' && (
+                              <div className="space-y-4">
+                                  <button onClick={()=>{setEditingItem(null); setFormData({ platform: 'Android', screenshots: [] }); setModalType('app');}} className="w-full py-4 border-2 border-dashed border-zinc-300 rounded-[24px] text-zinc-400 font-bold hover:border-blue-500 hover:text-blue-500 transition-colors bg-zinc-50">+ Publish New App</button>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {apps.map(a => (
+                                          <div key={a.id} className="flex gap-4 p-4 bg-white border border-zinc-100 rounded-[24px] shadow-sm hover:shadow-md transition-all items-center">
+                                              <img src={a.icon_url} className="w-16 h-16 rounded-[16px] object-cover bg-zinc-100" alt="app"/>
+                                              <div className="flex-1 min-w-0">
+                                                  <h4 className="font-bold text-sm truncate text-zinc-900">{a.name}</h4>
+                                                  <p className="text-xs text-zinc-500 truncate">{a.developer}</p>
+                                                  <div className="flex gap-2 mt-1">
+                                                      <span className="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg uppercase">{a.category || 'App'}</span>
+                                                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-zinc-100 text-zinc-600 text-[10px] font-bold rounded-lg uppercase">
+                                                          {getPlatformIcon(a.platform)} {a.platform || 'Cross'}
+                                                      </span>
+                                                  </div>
+                                              </div>
+                                              <div className="flex gap-1 items-center">
+                                                 <button onClick={()=>{setEditingItem(a); setFormData({ ...a, screenshots: a.screenshots || [] }); setModalType('app');}} className="p-2.5 bg-zinc-50 rounded-xl text-zinc-600 hover:bg-zinc-200"><Edit3 size={16}/></button>
+                                                 <button onClick={()=>handleDelete('wda_apps', a.id)} className="p-2.5 bg-red-50 rounded-xl text-red-500 hover:bg-red-100"><Trash2 size={16}/></button>
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+
                           {/* SETTING TAB */}
                           {adminTab === 'setting' && (
                               <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm p-6">
@@ -896,6 +1141,93 @@ export default function WuregStore() {
           </div>
       )}
 
+      {/* APP DETAIL MODAL (WDA STORE) */}
+      {selectedApp && (
+          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-md p-0 md:p-4 animate-in fade-in">
+              <div className="bg-white w-full md:max-w-xl rounded-t-[32px] md:rounded-[32px] overflow-hidden shadow-2xl max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-10">
+                  <div className="relative h-48 bg-zinc-100 w-full shrink-0">
+                      {selectedApp.banner_url ? (
+                          <img src={selectedApp.banner_url} className="w-full h-full object-cover" alt="Banner" />
+                      ) : (
+                          <div className="w-full h-full bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+                      )}
+                      <button onClick={()=> setSelectedApp(null)} className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-colors"><X size={20}/></button>
+                  </div>
+                  <div className="px-6 md:px-8 pb-8 pt-0 relative flex-1 overflow-y-auto">
+                      <div className="flex flex-col md:flex-row gap-5 items-start md:items-end -mt-12 mb-6">
+                          <div className="w-24 h-24 rounded-[24px] bg-white p-1 shadow-lg shrink-0">
+                              <img src={selectedApp.icon_url} className="w-full h-full rounded-[20px] object-cover bg-zinc-100" alt="Icon"/>
+                          </div>
+                          <div className="flex-1 w-full flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mt-2 md:mt-0">
+                              <div>
+                                  <div className="flex items-center gap-2 mb-1">
+                                      <h2 className="text-2xl font-black text-zinc-900 leading-tight">{selectedApp.name}</h2>
+                                      <span className="inline-flex items-center justify-center p-1 bg-zinc-100 text-zinc-500 rounded-md">
+                                          {getPlatformIcon(selectedApp.platform)}
+                                      </span>
+                                  </div>
+                                  <p className="text-blue-600 font-bold text-sm">{selectedApp.developer}</p>
+                              </div>
+                              <a href={formatExternalUrl(selectedApp.apk_url)} target="_blank" rel="noreferrer" className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white font-black rounded-full hover:bg-blue-700 hover:scale-105 transition-all text-center shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                                  <Download size={18}/> {selectedApp.price > 0 ? `Buy Rp ${selectedApp.price.toLocaleString()}` : 'Install'}
+                              </a>
+                          </div>
+                      </div>
+
+                      <div className="flex gap-6 mb-8 border-b border-zinc-100 pb-6">
+                          <div className="text-center">
+                              <div className="text-sm font-bold text-zinc-900 flex items-center gap-1 justify-center">{selectedApp.rating || '4.8'} <Star size={14} className="fill-zinc-900"/></div>
+                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Rating</div>
+                          </div>
+                          <div className="w-px bg-zinc-200"></div>
+                          <div className="text-center">
+                              <div className="text-sm font-bold text-zinc-900">{selectedApp.downloads || '10K+'}</div>
+                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Downloads</div>
+                          </div>
+                          <div className="w-px bg-zinc-200"></div>
+                          <div className="text-center">
+                              <div className="text-sm font-bold text-zinc-900">{selectedApp.category || 'App'}</div>
+                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Category</div>
+                          </div>
+                      </div>
+
+                      {/* Screenshots Carousel */}
+                      {selectedApp.screenshots && selectedApp.screenshots.length > 0 && (
+                          <div className="mb-8">
+                              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                                  {selectedApp.screenshots.map((url: string, idx: number) => (
+                                      <div key={idx} className="w-[140px] md:w-[180px] h-[260px] md:h-[320px] shrink-0 rounded-[20px] bg-zinc-100 overflow-hidden border border-zinc-200 snap-center">
+                                          <img src={url} alt={`Screenshot ${idx}`} className="w-full h-full object-cover" />
+                                      </div>
+                                  ))}
+                              </div>
+                          </div>
+                      )}
+
+                      <div className="space-y-6">
+                          <div>
+                              <h3 className="font-bold text-lg text-zinc-900 mb-2">About this app</h3>
+                              <p className="text-zinc-600 text-sm leading-relaxed whitespace-pre-wrap">
+                                  {selectedApp.description || 'No description provided.'}
+                              </p>
+                          </div>
+
+                          {selectedApp.system_requirements && (
+                              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                                  <h3 className="font-bold text-sm text-blue-900 mb-1 flex items-center gap-2">
+                                      <Info size={16} /> System Requirements
+                                  </h3>
+                                  <p className="text-blue-800/80 text-sm">
+                                      {selectedApp.system_requirements}
+                                  </p>
+                              </div>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* CHECKOUT MODAL (PRODUCT) */}
       {selectedProduct && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-md p-0 md:p-4 animate-in fade-in">
@@ -995,21 +1327,76 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* CRUD MODAL */}
+      {/* CRUD MODALS */}
       {modalType && !['invoice', 'expense_detail', 'topup_balance'].includes(modalType) && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-md p-4">
-              <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-                  <h3 className="font-bold text-xl mb-6 capitalize text-zinc-900">{editingItem ? 'Edit' : 'Tambah'} {modalType}</h3>
+              <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+                  <h3 className="font-bold text-xl mb-6 capitalize text-zinc-900">{editingItem ? 'Edit' : 'Tambah'} {modalType === 'app' ? 'WDA App' : modalType}</h3>
                   <div className="space-y-4 mb-6">
+                      
                       {modalType === 'product' && (
                           <>
                              <KodesetInput placeholder="Nama Produk" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
                              <KodesetInput type="number" placeholder="Harga" value={formData.price||''} onChange={(e:any)=>setFormData({...formData, price:e.target.value})} />
                              <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Software</option><option>Jasa</option></select>
-                             <KodesetInput placeholder="Image URL" value={formData.image_url||''} onChange={(e:any)=>setFormData({...formData, image_url:e.target.value})} />
+                             <FileUploadField label="Image URL / Upload" value={formData.image_url} onChange={(val: string) => setFormData({...formData, image_url: val})} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'image_url')} isUploading={isUploading} />
                              <button onClick={()=>handleSaveItem('products', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Produk</button>
                           </>
                       )}
+                      
+                      {modalType === 'app' && (
+                          <>
+                             <KodesetInput placeholder="App Name" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
+                             <KodesetInput placeholder="Developer" value={formData.developer||''} onChange={(e:any)=>setFormData({...formData, developer:e.target.value})} />
+                             
+                             <div className="flex gap-2">
+                                <select className="flex-1 bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-blue-500" value={formData.platform||'Android'} onChange={e=>setFormData({...formData, platform:e.target.value})}>
+                                    <option value="Android">📱 Android</option>
+                                    <option value="Windows">💻 Windows</option>
+                                    <option value="Cross-Platform">🌐 Cross-Platform</option>
+                                </select>
+                                <select className="flex-1 bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-blue-500" value={formData.category||'App'} onChange={e=>setFormData({...formData, category:e.target.value})}>
+                                    <option>App</option><option>Game</option><option>Tool</option><option>Education</option>
+                                </select>
+                             </div>
+
+                             <KodesetInput type="number" placeholder="Price (0 = Free)" value={formData.price||''} onChange={(e:any)=>setFormData({...formData, price:e.target.value})} />
+                             
+                             <FileUploadField label="Icon URL / Upload" value={formData.icon_url} onChange={(val: string) => setFormData({...formData, icon_url: val})} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'icon_url')} isUploading={isUploading} />
+                             <FileUploadField label="Banner URL / Upload" value={formData.banner_url} onChange={(val: string) => setFormData({...formData, banner_url: val})} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'banner_url')} isUploading={isUploading} />
+                             <FileUploadField label="APK/Store Link / Upload File" value={formData.apk_url} onChange={(val: string) => setFormData({...formData, apk_url: val})} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'apk_url')} isUploading={isUploading} accept="*" />
+                             
+                             <MultipleFileUploadField 
+                                 label="Screenshots" 
+                                 urls={formData.screenshots || []} 
+                                 onChange={(urls: string[]) => setFormData({...formData, screenshots: urls})} 
+                                 onUploadMultiple={(e: any) => handleMultipleFilesUpload(e, 'store_assets')} 
+                                 isUploading={isUploading} 
+                             />
+
+                             <div className="space-y-2">
+                                 <label className="text-xs font-bold text-zinc-500 ml-1">System Requirements</label>
+                                 <input 
+                                     className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 font-medium text-sm outline-none focus:border-blue-500"
+                                     placeholder="e.g. Android 8.0+ / Windows 10 64-bit"
+                                     value={formData.system_requirements || ''}
+                                     onChange={(e) => setFormData({...formData, system_requirements: e.target.value})}
+                                 />
+                             </div>
+
+                             <div className="space-y-2">
+                                 <label className="text-xs font-bold text-zinc-500 ml-1">Description</label>
+                                 <textarea 
+                                     className="w-full bg-white border border-zinc-200 rounded-xl p-3 text-sm font-medium outline-none focus:border-blue-500 min-h-[100px]"
+                                     placeholder="Describe the app..."
+                                     value={formData.description || ''}
+                                     onChange={(e) => setFormData({...formData, description: e.target.value})}
+                                 />
+                             </div>
+                             <button onClick={()=>handleSaveItem('wda_apps', formData)} className="w-full py-4 bg-blue-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Save App</button>
+                          </>
+                      )}
+
                       {modalType === 'payment' && (
                           <>
                              <KodesetInput placeholder="Nama Bank / E-Wallet" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
@@ -1139,7 +1526,7 @@ export default function WuregStore() {
                   </div>
                   <div className="space-y-3">
                       {contactMethods.map(c => (
-                          <a key={c.id} href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 bg-zinc-50 border border-zinc-200 rounded-2xl hover:bg-zinc-100 hover:border-indigo-200 transition-all group">
+                          <a key={c.id} href={formatExternalUrl(c.url)} target="_blank" rel="noreferrer" className="flex items-center gap-4 p-4 bg-zinc-50 border border-zinc-200 rounded-2xl hover:bg-zinc-100 hover:border-indigo-200 transition-all group">
                               <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm text-zinc-700 group-hover:text-indigo-600"><ExternalLink size={18}/></div>
                               <div>
                                   <div className="font-bold text-zinc-900">{c.platform_name}</div>
