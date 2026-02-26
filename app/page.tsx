@@ -8,7 +8,7 @@ import {
   AlertCircle, RefreshCw, Plus, Monitor, FileSpreadsheet, Gamepad2, 
   Home, User, X, Zap, Settings, ToggleLeft, ToggleRight, Printer, 
   Image as ImageIcon, Wallet, MinusCircle, PlusCircle, History, Receipt, Lock, ExternalLink, TrendingUp, ArrowUpCircle,
-  Smartphone, Download, Star, Upload, Info, LayoutGrid, XCircle
+  Smartphone, Download, Star, Upload, Info, LayoutGrid, HardDrive, Hash, ChevronRight
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -26,6 +26,13 @@ const formatExternalUrl = (url: string) => {
     if (!url) return '#';
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     return `https://${url}`;
+};
+
+const formatDownloads = (count: number) => {
+    if (!count) return '0';
+    if (count >= 1000000) return (count / 1000000).toFixed(1) + 'M+';
+    if (count >= 1000) return (count / 1000).toFixed(1) + 'K+';
+    return count.toString();
 };
 
 // --- COMPONENTS ---
@@ -48,7 +55,7 @@ const KodesetInput = ({ icon: Icon, ...props }: any) => (
   </div>
 );
 
-const FileUploadField = ({ label, value, onChange, onUpload, isUploading, bucket = 'store_assets', accept="image/*,.apk,.zip" }: any) => {
+const FileUploadField = ({ label, value, onChange, onUpload, isUploading, bucket = 'store_assets', accept="image/*,.apk,.zip,.exe" }: any) => {
     return (
         <div className="space-y-2">
             <label className="text-xs font-bold text-zinc-500 ml-1">{label}</label>
@@ -61,7 +68,7 @@ const FileUploadField = ({ label, value, onChange, onUpload, isUploading, bucket
                     className="flex-1 bg-white border border-zinc-200 rounded-xl px-4 py-3 font-medium text-sm text-zinc-800 outline-none focus:border-indigo-500"
                 />
                 <div className="relative">
-                    <button type="button" disabled={isUploading} className="h-full px-4 bg-zinc-100 border border-zinc-200 rounded-xl text-zinc-600 hover:bg-zinc-200 flex items-center justify-center disabled:opacity-50">
+                    <button type="button" disabled={isUploading} className="h-full px-4 bg-zinc-100 border border-zinc-200 rounded-xl text-zinc-600 hover:bg-zinc-200 flex items-center justify-center disabled:opacity-50 transition-colors">
                         {isUploading ? <RefreshCw size={18} className="animate-spin" /> : <Upload size={18} />}
                     </button>
                     <input 
@@ -77,7 +84,6 @@ const FileUploadField = ({ label, value, onChange, onUpload, isUploading, bucket
     );
 };
 
-// NEW: Multiple File Upload Component for Screenshots
 const MultipleFileUploadField = ({ label, urls = [], onChange, onUploadMultiple, isUploading, bucket = 'store_assets' }: any) => {
     const handleRemove = (index: number) => {
         const newUrls = [...urls];
@@ -90,7 +96,7 @@ const MultipleFileUploadField = ({ label, urls = [], onChange, onUploadMultiple,
             <div className="flex justify-between items-center mb-2">
                 <label className="text-xs font-bold text-zinc-500 ml-1">{label}</label>
                 <div className="relative overflow-hidden">
-                    <button type="button" disabled={isUploading} className="px-3 py-1.5 bg-blue-100 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-200 flex items-center gap-2 disabled:opacity-50">
+                    <button type="button" disabled={isUploading} className="px-3 py-1.5 bg-blue-100 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-200 flex items-center gap-2 disabled:opacity-50 transition-colors">
                         {isUploading ? <RefreshCw size={14} className="animate-spin" /> : <Plus size={14} />} Add Screenshots
                     </button>
                     <input 
@@ -116,7 +122,7 @@ const MultipleFileUploadField = ({ label, urls = [], onChange, onUploadMultiple,
                     ))}
                 </div>
             ) : (
-                <div className="text-center py-6 text-zinc-400 text-xs font-medium border-2 border-dashed border-zinc-200 rounded-xl">
+                <div className="text-center py-6 text-zinc-400 text-xs font-medium border-2 border-dashed border-zinc-200 rounded-xl bg-white">
                     No screenshots added yet.
                 </div>
             )}
@@ -245,6 +251,7 @@ export default function WuregStore() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // UPLOAD FIX: Using setFormData with a callback function to prevent Stale State
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucketName: string, fieldName: string) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -253,22 +260,22 @@ export default function WuregStore() {
       try {
           const fileExt = file.name.split('.').pop();
           const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-          const filePath = `${fileName}`;
           
-          const { error: uploadError } = await supabase.storage.from(bucketName).upload(filePath, file);
+          const { error: uploadError } = await supabase.storage.from(bucketName).upload(fileName, file);
           if (uploadError) throw uploadError;
           
-          const { data } = supabase.storage.from(bucketName).getPublicUrl(filePath);
-          setFormData({ ...formData, [fieldName]: data.publicUrl });
+          const { data } = supabase.storage.from(bucketName).getPublicUrl(fileName);
+          
+          // PREVENT STALE STATE
+          setFormData(prev => ({ ...prev, [fieldName]: data.publicUrl }));
           showToast("File uploaded successfully", "success");
       } catch (error: any) {
-          showToast(`Upload failed: ${error.message}. Please check bucket settings.`, "error");
+          showToast(`Upload failed: ${error.message}`, "error");
       } finally {
           setIsUploading(false);
       }
   };
 
-  // Upload Multiple Screenshots Handler
   const handleMultipleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucketName: string) => {
       const files = Array.from(e.target.files || []);
       if (!files.length) return;
@@ -286,8 +293,11 @@ export default function WuregStore() {
               urls.push(data.publicUrl);
           }
           
-          const currentScreenshots = formData.screenshots || [];
-          setFormData({ ...formData, screenshots: [...currentScreenshots, ...urls] });
+          // PREVENT STALE STATE
+          setFormData(prev => ({ 
+              ...prev, 
+              screenshots: [...(prev.screenshots || []), ...urls] 
+          }));
           showToast(`${files.length} screenshots uploaded`, "success");
       } catch (error: any) {
           showToast(`Upload failed: ${error.message}`, "error");
@@ -356,7 +366,26 @@ export default function WuregStore() {
       setIsAuthLoading(false);
   };
 
-  // --- TOP UP LOGIC ---
+  // REAL DOWNLOAD TRACKING
+  const handleDownloadApp = async (app: any) => {
+      // Buka Link Download
+      window.open(formatExternalUrl(app.apk_url), '_blank');
+      
+      // Increment Real Database Count
+      const newCount = (app.download_count || 0) + 1;
+      
+      try {
+          // Update DB
+          await supabase.from('wda_apps').update({ download_count: newCount }).eq('id', app.id);
+          
+          // Update State Lokal agar UI langsung berubah tanpa refresh
+          setSelectedApp({ ...app, download_count: newCount });
+          setApps(prevApps => prevApps.map(a => a.id === app.id ? { ...a, download_count: newCount } : a));
+      } catch (err) {
+          console.error("Failed to update download count", err);
+      }
+  };
+
   const processFinalTopUp = async () => {
     if(topUpAmount <= 0) return showToast("Nominal tidak valid", "error");
     setIsSubmitting(true);
@@ -377,7 +406,6 @@ export default function WuregStore() {
     }
   };
 
-  // --- CASH OUT LOGIC ---
   const handleAddCashOutItem = () => {
       setCashOutForm({
           ...cashOutForm,
@@ -439,7 +467,6 @@ export default function WuregStore() {
       }
   };
 
-  // --- CRUD & Handlers ---
   const handleSaveItem = async (table: string, payload: any) => {
     try {
       const res = editingItem?.id 
@@ -1141,62 +1168,84 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* APP DETAIL MODAL (WDA STORE) */}
+      {/* APP DETAIL MODAL (RESPONSIVE PC & MOBILE) */}
       {selectedApp && (
-          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-md p-0 md:p-4 animate-in fade-in">
-              <div className="bg-white w-full md:max-w-xl rounded-t-[32px] md:rounded-[32px] overflow-hidden shadow-2xl max-h-[90vh] flex flex-col animate-in slide-in-from-bottom-10">
-                  <div className="relative h-48 bg-zinc-100 w-full shrink-0">
+          <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-md p-0 md:p-6 animate-in fade-in">
+              <div className="bg-white w-full md:max-w-2xl rounded-t-[32px] md:rounded-[32px] overflow-hidden shadow-2xl max-h-[90vh] md:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-10 relative">
+                  
+                  {/* Banner Header */}
+                  <div className="relative h-48 md:h-64 bg-zinc-100 w-full shrink-0">
                       {selectedApp.banner_url ? (
                           <img src={selectedApp.banner_url} className="w-full h-full object-cover" alt="Banner" />
                       ) : (
-                          <div className="w-full h-full bg-gradient-to-r from-blue-500 to-indigo-600"></div>
+                          <div className="w-full h-full bg-gradient-to-tr from-blue-600 to-indigo-800"></div>
                       )}
-                      <button onClick={()=> setSelectedApp(null)} className="absolute top-4 right-4 p-2 bg-black/40 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-colors"><X size={20}/></button>
+                      
+                      {/* Gradient Overlay untuk transisi warna yang halus ke putih */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-white via-white/10 to-transparent"></div>
+                      
+                      <button onClick={()=> setSelectedApp(null)} className="absolute top-4 right-4 p-2.5 bg-black/30 backdrop-blur-md rounded-full text-white hover:bg-black/60 transition-colors z-10"><X size={20}/></button>
                   </div>
-                  <div className="px-6 md:px-8 pb-8 pt-0 relative flex-1 overflow-y-auto">
-                      <div className="flex flex-col md:flex-row gap-5 items-start md:items-end -mt-12 mb-6">
-                          <div className="w-24 h-24 rounded-[24px] bg-white p-1 shadow-lg shrink-0">
-                              <img src={selectedApp.icon_url} className="w-full h-full rounded-[20px] object-cover bg-zinc-100" alt="Icon"/>
+
+                  {/* Body Konten */}
+                  <div className="px-6 md:px-10 pb-10 pt-0 relative flex-1 overflow-y-auto">
+                      {/* Header Info: Ikon & Teks */}
+                      <div className="flex flex-col md:flex-row gap-5 items-start md:items-end -mt-16 mb-8 relative z-10">
+                          <div className="w-28 h-28 rounded-[28px] bg-white p-1 shadow-xl shrink-0">
+                              <img src={selectedApp.icon_url} className="w-full h-full rounded-[24px] object-cover bg-zinc-100" alt="Icon"/>
                           </div>
-                          <div className="flex-1 w-full flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mt-2 md:mt-0">
+                          <div className="flex-1 w-full flex flex-col md:flex-row justify-between items-start md:items-end gap-5 mt-2 md:mt-0 pb-1">
                               <div>
                                   <div className="flex items-center gap-2 mb-1">
-                                      <h2 className="text-2xl font-black text-zinc-900 leading-tight">{selectedApp.name}</h2>
-                                      <span className="inline-flex items-center justify-center p-1 bg-zinc-100 text-zinc-500 rounded-md">
-                                          {getPlatformIcon(selectedApp.platform)}
-                                      </span>
+                                      <h2 className="text-2xl md:text-3xl font-black text-zinc-900 leading-tight">{selectedApp.name}</h2>
                                   </div>
-                                  <p className="text-blue-600 font-bold text-sm">{selectedApp.developer}</p>
+                                  <p className="text-blue-600 font-bold text-sm md:text-base">{selectedApp.developer}</p>
                               </div>
-                              <a href={formatExternalUrl(selectedApp.apk_url)} target="_blank" rel="noreferrer" className="w-full md:w-auto px-8 py-3 bg-blue-600 text-white font-black rounded-full hover:bg-blue-700 hover:scale-105 transition-all text-center shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2">
+                              <button 
+                                  onClick={() => {
+                                      if (selectedApp.price > 0) {
+                                          setSelectedProduct(selectedApp); 
+                                          setCheckoutStep(1); 
+                                      } else {
+                                          handleDownloadApp(selectedApp);
+                                      }
+                                  }} 
+                                  className="w-full md:w-auto px-10 py-3.5 bg-blue-600 text-white font-black rounded-full hover:bg-blue-700 hover:scale-105 transition-all text-center shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+                              >
                                   <Download size={18}/> {selectedApp.price > 0 ? `Buy Rp ${selectedApp.price.toLocaleString()}` : 'Install'}
-                              </a>
+                              </button>
                           </div>
                       </div>
 
-                      <div className="flex gap-6 mb-8 border-b border-zinc-100 pb-6">
-                          <div className="text-center">
+                      {/* Info Stat Grid */}
+                      <div className="flex justify-between items-center mb-8 pb-8 border-b border-zinc-100">
+                          <div className="text-center flex-1">
                               <div className="text-sm font-bold text-zinc-900 flex items-center gap-1 justify-center">{selectedApp.rating || '4.8'} <Star size={14} className="fill-zinc-900"/></div>
-                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Rating</div>
+                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Reviews</div>
                           </div>
-                          <div className="w-px bg-zinc-200"></div>
-                          <div className="text-center">
-                              <div className="text-sm font-bold text-zinc-900">{selectedApp.downloads || '10K+'}</div>
+                          <div className="w-px h-8 bg-zinc-200"></div>
+                          <div className="text-center flex-1">
+                              <div className="text-sm font-bold text-zinc-900 flex justify-center items-center gap-1"><Download size={14}/> {formatDownloads(selectedApp.download_count)}</div>
                               <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Downloads</div>
                           </div>
-                          <div className="w-px bg-zinc-200"></div>
-                          <div className="text-center">
-                              <div className="text-sm font-bold text-zinc-900">{selectedApp.category || 'App'}</div>
-                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Category</div>
+                          <div className="w-px h-8 bg-zinc-200"></div>
+                          <div className="text-center flex-1">
+                              <div className="text-sm font-bold text-zinc-900 flex justify-center items-center gap-1"><HardDrive size={14}/> {selectedApp.file_size || 'N/A'}</div>
+                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Size</div>
+                          </div>
+                          <div className="w-px h-8 bg-zinc-200 hidden md:block"></div>
+                          <div className="text-center flex-1 hidden md:block">
+                              <div className="text-sm font-bold text-zinc-900 flex justify-center items-center gap-1"><Hash size={14}/> {selectedApp.version || '1.0.0'}</div>
+                              <div className="text-[10px] text-zinc-500 uppercase font-bold mt-1">Version</div>
                           </div>
                       </div>
 
                       {/* Screenshots Carousel */}
                       {selectedApp.screenshots && selectedApp.screenshots.length > 0 && (
                           <div className="mb-8">
-                              <div className="flex gap-3 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
                                   {selectedApp.screenshots.map((url: string, idx: number) => (
-                                      <div key={idx} className="w-[140px] md:w-[180px] h-[260px] md:h-[320px] shrink-0 rounded-[20px] bg-zinc-100 overflow-hidden border border-zinc-200 snap-center">
+                                      <div key={idx} className="w-[160px] md:w-[220px] aspect-[9/16] shrink-0 rounded-[20px] bg-zinc-100 overflow-hidden border border-zinc-200 snap-center shadow-sm">
                                           <img src={url} alt={`Screenshot ${idx}`} className="w-full h-full object-cover" />
                                       </div>
                                   ))}
@@ -1204,24 +1253,43 @@ export default function WuregStore() {
                           </div>
                       )}
 
-                      <div className="space-y-6">
+                      {/* Deskripsi & Spesifikasi */}
+                      <div className="space-y-8">
                           <div>
-                              <h3 className="font-bold text-lg text-zinc-900 mb-2">About this app</h3>
+                              <h3 className="font-black text-xl text-zinc-900 mb-3">About this app</h3>
                               <p className="text-zinc-600 text-sm leading-relaxed whitespace-pre-wrap">
                                   {selectedApp.description || 'No description provided.'}
                               </p>
                           </div>
 
-                          {selectedApp.system_requirements && (
-                              <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-                                  <h3 className="font-bold text-sm text-blue-900 mb-1 flex items-center gap-2">
-                                      <Info size={16} /> System Requirements
-                                  </h3>
-                                  <p className="text-blue-800/80 text-sm">
-                                      {selectedApp.system_requirements}
-                                  </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {/* Requirement Card */}
+                              {selectedApp.system_requirements && (
+                                  <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 flex gap-4 items-start">
+                                      <div className="p-2 bg-blue-100 text-blue-600 rounded-xl"><Info size={20}/></div>
+                                      <div>
+                                          <h4 className="font-bold text-sm text-blue-900 mb-1">System Requirements</h4>
+                                          <p className="text-blue-800/80 text-xs font-medium">{selectedApp.system_requirements}</p>
+                                      </div>
+                                  </div>
+                              )}
+                              
+                              {/* Detail Card (Versi & Kategori di Mobile) */}
+                              <div className="bg-zinc-50 p-5 rounded-2xl border border-zinc-100 space-y-3">
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-xs font-bold text-zinc-500 uppercase">Category</span>
+                                      <span className="text-sm font-bold text-zinc-900 bg-white px-2 py-1 rounded-md border border-zinc-200">{selectedApp.category || 'App'}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-xs font-bold text-zinc-500 uppercase">Platform</span>
+                                      <span className="text-sm font-bold text-zinc-900 bg-white px-2 py-1 rounded-md border border-zinc-200 flex items-center gap-1">{getPlatformIcon(selectedApp.platform)} {selectedApp.platform || 'Cross'}</span>
+                                  </div>
+                                  <div className="md:hidden flex justify-between items-center">
+                                      <span className="text-xs font-bold text-zinc-500 uppercase">Version</span>
+                                      <span className="text-sm font-bold text-zinc-900 bg-white px-2 py-1 rounded-md border border-zinc-200">{selectedApp.version || '1.0.0'}</span>
+                                  </div>
                               </div>
-                          )}
+                          </div>
                       </div>
                   </div>
               </div>
@@ -1229,12 +1297,12 @@ export default function WuregStore() {
       )}
 
       {/* CHECKOUT MODAL (PRODUCT) */}
-      {selectedProduct && (
+      {selectedProduct && selectedProduct.category !== 'App' && selectedProduct.category !== 'Game' && selectedProduct.category !== 'Tool' && selectedProduct.category !== 'Education' && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-md p-0 md:p-4 animate-in fade-in">
               <div className="bg-white w-full md:max-w-md rounded-t-[32px] md:rounded-[32px] p-6 md:p-8 shadow-2xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-10">
                   <div className="flex gap-4 items-center mb-6 border-b border-zinc-100 pb-4">
                       <div className="w-16 h-16 rounded-[18px] overflow-hidden bg-zinc-100">
-                        <img src={selectedProduct.image_url} className="w-full h-full object-cover" alt="prod"/>
+                        <img src={selectedProduct.image_url || selectedProduct.icon_url} className="w-full h-full object-cover" alt="prod"/>
                       </div>
                       <div>
                           <h3 className="font-bold text-zinc-900 leading-tight text-lg">{selectedProduct.name}</h3>
@@ -1362,6 +1430,17 @@ export default function WuregStore() {
 
                              <KodesetInput type="number" placeholder="Price (0 = Free)" value={formData.price||''} onChange={(e:any)=>setFormData({...formData, price:e.target.value})} />
                              
+                             <div className="flex gap-2">
+                                <div className="flex-1">
+                                   <label className="text-xs font-bold text-zinc-500 ml-1">Version</label>
+                                   <input className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500" placeholder="e.g. 1.0.0" value={formData.version || ''} onChange={(e) => setFormData({...formData, version: e.target.value})} />
+                                </div>
+                                <div className="flex-1">
+                                   <label className="text-xs font-bold text-zinc-500 ml-1">File Size</label>
+                                   <input className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm outline-none focus:border-blue-500" placeholder="e.g. 45 MB" value={formData.file_size || ''} onChange={(e) => setFormData({...formData, file_size: e.target.value})} />
+                                </div>
+                             </div>
+
                              <FileUploadField label="Icon URL / Upload" value={formData.icon_url} onChange={(val: string) => setFormData({...formData, icon_url: val})} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'icon_url')} isUploading={isUploading} />
                              <FileUploadField label="Banner URL / Upload" value={formData.banner_url} onChange={(val: string) => setFormData({...formData, banner_url: val})} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'banner_url')} isUploading={isUploading} />
                              <FileUploadField label="APK/Store Link / Upload File" value={formData.apk_url} onChange={(val: string) => setFormData({...formData, apk_url: val})} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'apk_url')} isUploading={isUploading} accept="*" />
