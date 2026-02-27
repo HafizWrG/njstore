@@ -8,7 +8,7 @@ import {
   AlertCircle, RefreshCw, Plus, Monitor, FileSpreadsheet, Gamepad2, 
   Home, User, X, Zap, Settings, ToggleLeft, ToggleRight, Printer, 
   Image as ImageIcon, Wallet, MinusCircle, PlusCircle, History, Receipt, Lock, ExternalLink, TrendingUp, ArrowUpCircle,
-  Smartphone, Download, Star, Upload, Info, LayoutGrid, HardDrive, Hash
+  Smartphone, Download, Star, Upload, Info, LayoutGrid, HardDrive, Hash, Share2
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 
@@ -251,7 +251,6 @@ export default function WuregStore() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  // UPLOAD FIX: Menggunakan callback pada setFormData agar tidak terjadi Stale State (data tertimpa)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucketName: string, fieldName: string) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -275,14 +274,14 @@ export default function WuregStore() {
       }
   };
 
-  // UPLOAD MULTIPLE FIX
+  // FIX TYPE SCRIPT ERROR DI SINI: const urls: string[] = [];
   const handleMultipleFilesUpload = async (e: React.ChangeEvent<HTMLInputElement>, bucketName: string) => {
       const files = Array.from(e.target.files || []);
       if (!files.length) return;
       
       setIsUploading(true);
       try {
-          const urls = [];
+          const urls: string[] = []; // FIXED
           for (const file of files) {
               const fileExt = file.name.split('.').pop();
               const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
@@ -380,6 +379,27 @@ export default function WuregStore() {
       }
   };
 
+  // FITUR SHARE APP
+  const handleShareApp = async (app: any) => {
+      const shareData = {
+          title: app.name,
+          text: `Download ${app.name} dari WDA Store sekarang!`,
+          url: window.location.href, // Link website utama
+      };
+
+      try {
+          if (navigator.share) {
+              await navigator.share(shareData);
+          } else {
+              // Fallback untuk browser PC lama
+              await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+              showToast("Teks & Link disalin ke clipboard!", "success");
+          }
+      } catch (err) {
+          console.error("Error sharing:", err);
+      }
+  };
+
   // --- TOP UP LOGIC ---
   const processFinalTopUp = async () => {
     if(topUpAmount <= 0) return showToast("Nominal tidak valid", "error");
@@ -463,7 +483,6 @@ export default function WuregStore() {
       }
   };
 
-  // --- CRUD & Handlers ---
   const handleSaveItem = async (table: string, payload: any) => {
     try {
       const res = editingItem?.id 
@@ -1163,7 +1182,7 @@ export default function WuregStore() {
           </div>
       )}
 
-      {/* APP DETAIL MODAL (RESPONSIVE PC & MOBILE) - UI FIX TERAPKAN DI SINI */}
+      {/* APP DETAIL MODAL (RESPONSIVE PC & MOBILE) - UI FIX & SHARE FEATURE */}
       {selectedApp && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-md p-0 md:p-6 animate-in fade-in">
               <div className="bg-white w-full md:max-w-2xl rounded-t-[32px] md:rounded-[32px] overflow-hidden shadow-2xl max-h-[90vh] md:max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-10 relative">
@@ -1202,19 +1221,29 @@ export default function WuregStore() {
                                       </div>
                                       <p className="text-blue-600 font-bold text-sm md:text-base">{selectedApp.developer}</p>
                                   </div>
-                                  <button 
-                                      onClick={() => {
-                                          if (selectedApp.price > 0) {
-                                              setSelectedProduct(selectedApp); 
-                                              setCheckoutStep(1); 
-                                          } else {
-                                              handleDownloadApp(selectedApp);
-                                          }
-                                      }} 
-                                      className="w-full md:w-auto px-10 py-3.5 bg-blue-600 text-white font-black rounded-full hover:bg-blue-700 hover:scale-105 transition-all text-center shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
-                                  >
-                                      <Download size={18}/> {selectedApp.price > 0 ? `Buy Rp ${selectedApp.price.toLocaleString()}` : 'Install'}
-                                  </button>
+                                  
+                                  {/* Action Buttons (Share & Install) */}
+                                  <div className="flex gap-2 w-full md:w-auto">
+                                      <button 
+                                          onClick={() => handleShareApp(selectedApp)}
+                                          className="p-3.5 bg-zinc-100 text-zinc-600 rounded-full hover:bg-zinc-200 transition-colors shadow-sm shrink-0"
+                                      >
+                                          <Share2 size={20} />
+                                      </button>
+                                      <button 
+                                          onClick={() => {
+                                              if (selectedApp.price > 0) {
+                                                  setSelectedProduct(selectedApp); 
+                                                  setCheckoutStep(1); 
+                                              } else {
+                                                  handleDownloadApp(selectedApp);
+                                              }
+                                          }} 
+                                          className="flex-1 md:w-auto px-10 py-3.5 bg-blue-600 text-white font-black rounded-full hover:bg-blue-700 hover:scale-105 transition-all text-center shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2"
+                                      >
+                                          <Download size={18}/> {selectedApp.price > 0 ? `Buy Rp ${selectedApp.price.toLocaleString()}` : 'Install'}
+                                      </button>
+                                  </div>
                               </div>
                           </div>
 
