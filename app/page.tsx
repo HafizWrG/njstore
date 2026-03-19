@@ -314,7 +314,18 @@ export default function WuregStore() {
       supabase.from('shop_balance').select('*').eq('id', 1).single() 
     ]);
     if(p.data) setProducts(p.data);
-    if(a.data) setApps(a.data);
+    if(a.data) {
+        setApps(a.data);
+        const params = new URLSearchParams(window.location.search);
+        const appId = params.get('app');
+        if (appId) {
+            const foundApp = a.data.find((x: any) => x.id === appId);
+            if (foundApp) {
+                setActivePage('appstore');
+                setSelectedApp(foundApp);
+            }
+        }
+    }
     if(pm.data) setPaymentMethods(pm.data);
     if(cm.data) setContactMethods(cm.data);
     if(bal.data) setShopBalance(bal.data.current_balance);
@@ -381,10 +392,11 @@ export default function WuregStore() {
 
   // FITUR SHARE APP
   const handleShareApp = async (app: any) => {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?app=${app.id}`;
       const shareData = {
           title: app.name,
           text: `Download ${app.name} dari WDA Store sekarang!`,
-          url: window.location.href, // Link website utama
+          url: shareUrl, // Link website dengan query string
       };
 
       try {
@@ -659,7 +671,7 @@ export default function WuregStore() {
                       </div>
                   </div>
                   <div className="flex justify-between md:justify-center overflow-x-auto gap-2 mb-10 pb-4 md:pb-0 scrollbar-hide">
-                      {['All', 'Game', 'TopUp', 'Akun', 'Software', 'Jasa'].map(c => (
+                      {['All', 'Games', 'TopUp', 'Akun', 'Software', 'Jasa'].map(c => (
                           <button key={c} onClick={()=>setSelectedCategory(c)} className={`px-6 py-2.5 rounded-full text-sm font-semibold transition-all duration-300 whitespace-nowrap ${selectedCategory===c ? 'bg-zinc-900 text-white shadow-lg' : 'bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-50'}`}>{c}</button>
                       ))}
                   </div>
@@ -1329,7 +1341,7 @@ export default function WuregStore() {
       )}
 
       {/* CHECKOUT MODAL (PRODUCT) */}
-      {selectedProduct && selectedProduct.category !== 'App' && selectedProduct.category !== 'Game' && selectedProduct.category !== 'Tool' && selectedProduct.category !== 'Education' && (
+      {selectedProduct && (
           <div className="fixed inset-0 z-[60] flex items-end md:items-center justify-center bg-black/40 backdrop-blur-md p-0 md:p-4 animate-in fade-in">
               <div className="bg-white w-full md:max-w-md rounded-t-[32px] md:rounded-[32px] p-6 md:p-8 shadow-2xl max-h-[90vh] overflow-y-auto animate-in slide-in-from-bottom-10">
                   <div className="flex gap-4 items-center mb-6 border-b border-zinc-100 pb-4">
@@ -1438,7 +1450,7 @@ export default function WuregStore() {
                           <>
                              <KodesetInput placeholder="Nama Produk" value={formData.name||''} onChange={(e:any)=>setFormData({...formData, name:e.target.value})} />
                              <KodesetInput type="number" placeholder="Harga" value={formData.price||''} onChange={(e:any)=>setFormData({...formData, price:e.target.value})} />
-                             <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Game'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Game</option><option>TopUp</option><option>Akun</option><option>Software</option><option>Jasa</option></select>
+                             <select className="w-full bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-indigo-500" value={formData.category||'Games'} onChange={e=>setFormData({...formData, category:e.target.value})}><option>Games</option><option>TopUp</option><option>Akun</option><option>Software</option><option>Jasa</option></select>
                              <FileUploadField label="Image URL / Upload" value={formData.image_url} onChange={(val: string) => setFormData((prev:any) => ({...prev, image_url: val}))} onUpload={(e: any) => handleFileUpload(e, 'store_assets', 'image_url')} isUploading={isUploading} />
                              <button onClick={()=>handleSaveItem('products', formData)} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-[20px] shadow-lg mt-2">Simpan Produk</button>
                           </>
@@ -1456,7 +1468,7 @@ export default function WuregStore() {
                                     <option value="Cross-Platform">🌐 Cross-Platform</option>
                                 </select>
                                 <select className="flex-1 bg-white border border-zinc-200 rounded-2xl py-4 px-4 font-medium text-zinc-800 outline-none focus:border-blue-500" value={formData.category||'App'} onChange={e=>setFormData({...formData, category:e.target.value})}>
-                                    <option>App</option><option>Game</option><option>Tool</option><option>Education</option>
+                                    <option>App</option><option>Games</option><option>Tool</option><option>Education</option>
                                 </select>
                              </div>
 
