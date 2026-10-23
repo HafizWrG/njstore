@@ -39,7 +39,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <amp-auto-ads 
+        <AmpAutoAds 
         type="adsense"
         data-ad-client="ca-pub-5954200496272319"
           />
