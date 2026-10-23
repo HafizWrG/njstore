@@ -17,6 +17,8 @@ export const metadata: Metadata = {
   description: "Hafiz Wirang",
 };
 
+const AmpAutoAds = "amp-auto-ads" as any;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,10 +32,20 @@ export default function RootLayout({
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5954200496272319"
           crossOrigin="anonymous"
         />
+        <script
+          async
+          custom-element="amp-auto-ads"
+          src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js"
+          strategy="afterInteractive"
+        />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+      <AmpAutoAds
+          type="adsense"
+          data-ad-client="ca-pub-5954200496272319"
+        />
         {children}
       </body>
     </html>
