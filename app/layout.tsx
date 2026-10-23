@@ -24,9 +24,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <script 
+          async 
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5954200496272319"
+          crossorigin="anonymous"
+        />
+        <script 
+          async 
+          custom-element="amp-auto-ads"
+          src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js"/
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <amp-auto-ads 
+        type="adsense"
+        data-ad-client="ca-pub-5954200496272319"
+          />
         {children}
       </body>
     </html>
