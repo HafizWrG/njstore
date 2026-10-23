@@ -29,13 +29,11 @@ export default function RootLayout({
           async 
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5954200496272319"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
         />
         <script 
           async 
           custom-element="amp-auto-ads"
           src="https://cdn.ampproject.org/v0/amp-auto-ads-0.1.js"
-          strategy="afterInteractive"
         />
       </head>
       <body
