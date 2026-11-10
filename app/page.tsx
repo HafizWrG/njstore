@@ -16,7 +16,6 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_KEY || '';
 const ADMIN_PHONE_FALLBACK = "6281528483575";
 const STORE_LOGO = "https://cdn.lynkid.my.id/profile/10-04-2025/1744247502273_9419383";
-const CASH_OUT_PIN = "31082007";
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -77,9 +76,7 @@ export default function WuregStore() {
     const [settingSubTab, setSettingSubTab] = useState<'payment' | 'voucher' | 'social'>('payment');
 
     // Cash Out & Top Up Specifics
-    const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-    const [pinAction, setPinAction] = useState<'cashout' | 'topup'>('cashout');
-    const [cashOutPinInput, setCashOutPinInput] = useState('');
+    const [isCashOutModalOpen, setIsCashOutModalOpen] = useState(false);
     const [topUpAmount, setTopUpAmount] = useState(0);
     const [cashOutForm, setCashOutForm] = useState({
         tag: 'Anwaha Mart',
@@ -306,8 +303,6 @@ export default function WuregStore() {
             showToast(err.message, "error");
         } finally {
             setIsSubmitting(false);
-            setIsPinModalOpen(false);
-            setCashOutPinInput('');
         }
     };
 
@@ -354,22 +349,11 @@ export default function WuregStore() {
             showToast("Cash Out Berhasil!", "success");
             setCashOutForm({ tag: 'Anwaha Mart', items: [{ name: '', price: 0, qty: 1 }] });
             fetchPublicData();
-            setIsPinModalOpen(false);
-            setCashOutPinInput('');
+            setIsCashOutModalOpen(false);
         } catch (err: any) {
             showToast(err.message, "error");
         } finally {
             setIsSubmitting(false);
-        }
-    };
-
-    const handlePinSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (cashOutPinInput === CASH_OUT_PIN) {
-            if (pinAction === 'cashout') processFinalCashOut();
-            else processFinalTopUp();
-        } else {
-            showToast("PIN SALAH!", "error");
         }
     };
 
@@ -505,9 +489,9 @@ export default function WuregStore() {
                     <span className="font-bold text-lg tracking-tight">WuregStore</span>
                 </div>
                 <div className="flex items-center gap-1 bg-zinc-100/50 p-1.5 rounded-full">
-                    {['home', 'appstore', 'cashout', 'staff'].map(page => (
+                    {['home', 'appstore', 'staff'].map(page => (
                         <button key={page} onClick={() => setActivePage(page)} className={`px-6 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${activePage === page ? 'bg-white text-indigo-600 shadow-sm' : 'text-zinc-500 hover:text-zinc-900'}`}>
-                            {page === 'home' ? 'Store' : page === 'appstore' ? 'WDA Store' : page === 'cashout' ? 'Cash Out' : 'Staff Portal'}
+                            {page === 'home' ? 'Store' : page === 'appstore' ? 'WDA Store' : 'Staff Portal'}
                         </button>
                     ))}
                 </div>
@@ -518,15 +502,12 @@ export default function WuregStore() {
 
             {/* MOBILE NAV */}
             <nav className="md:hidden fixed bottom-6 left-6 right-6 z-50 bg-white/80 backdrop-blur-xl border border-white/50 p-2 rounded-[24px] shadow-[0_10px_40px_rgba(0,0,0,0.1)]">
-                <div className="flex justify-between items-center px-2">
+                <div className="flex justify-around items-center px-2">
                     <button onClick={() => setActivePage('home')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage === 'home' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
                         <Home size={22} strokeWidth={activePage === 'home' ? 2.5 : 2} />
                     </button>
                     <button onClick={() => setActivePage('appstore')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage === 'appstore' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
                         <Smartphone size={22} strokeWidth={activePage === 'appstore' ? 2.5 : 2} />
-                    </button>
-                    <button onClick={() => setActivePage('cashout')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage === 'cashout' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
-                        <Wallet size={22} strokeWidth={activePage === 'cashout' ? 2.5 : 2} />
                     </button>
                     <button onClick={() => setActivePage('staff')} className={`flex flex-col items-center justify-center w-16 h-14 rounded-2xl transition-all ${activePage === 'staff' ? 'bg-zinc-100 text-indigo-600' : 'text-zinc-400'}`}>
                         <User size={22} strokeWidth={activePage === 'staff' ? 2.5 : 2} />
@@ -561,66 +542,7 @@ export default function WuregStore() {
                     />
                 )}
 
-                {/* --- PAGE: CASH OUT --- */}
-                {activePage === 'cashout' && (
-                    <div className="animate-in fade-in slide-in-from-bottom-8">
-                        <div className="max-w-2xl mx-auto">
-                            <div className="bg-white rounded-[24px] border border-zinc-200 shadow-sm p-6 md:p-8">
-                                <div className="flex justify-between items-center mb-6 pb-4 border-b border-zinc-100">
-                                    <div>
-                                        <h3 className="font-bold text-xl">Kasir Pengeluaran</h3>
-                                        <p className="text-xs text-zinc-400">Saldo saat ini: <span className="font-bold text-emerald-600">Rp {shopBalance.toLocaleString()}</span></p>
-                                    </div>
-                                    <button onClick={() => setCashOutForm({ tag: 'Anwaha Mart', items: [{ name: '', price: 0, qty: 1 }] })} className="p-2 bg-zinc-50 rounded-xl hover:bg-zinc-100"><RefreshCw size={18} /></button>
-                                </div>
 
-                                <div className="space-y-6">
-                                    <div>
-                                        <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Pilih Tag</label>
-                                        <div className="flex gap-2 mt-2">
-                                            {['Anwaha Mart', 'Syirkah', 'Warung', 'Idaroh'].map(tag => (
-                                                <button key={tag} onClick={() => setCashOutForm({ ...cashOutForm, tag })} className={`flex-1 py-3 rounded-xl font-bold text-sm border-2 transition-all ${cashOutForm.tag === tag ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-zinc-100 bg-zinc-50 text-zinc-400'}`}>
-                                                    {tag}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="space-y-3">
-                                        <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Daftar Belanja</label>
-                                        {cashOutForm.items.map((item, idx) => (
-                                            <div key={idx} className="flex gap-2 items-start">
-                                                <div className="flex-1 space-y-2">
-                                                    <input placeholder="Nama Jajanan / Barang" className="w-full p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-bold outline-none focus:border-indigo-500" value={item.name} onChange={e => handleCashOutChange(idx, 'name', e.target.value)} />
-                                                    <div className="flex gap-2">
-                                                        <input type="number" placeholder="Harga" className="flex-1 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500" value={item.price || ''} onChange={e => handleCashOutChange(idx, 'price', e.target.value)} />
-                                                        <input type="number" placeholder="Qty" className="w-20 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500 text-center" value={item.qty} onChange={e => handleCashOutChange(idx, 'qty', e.target.value)} />
-                                                    </div>
-                                                </div>
-                                                {cashOutForm.items.length > 1 && (
-                                                    <button onClick={() => handleRemoveCashOutItem(idx)} className="p-3 mt-1 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><MinusCircle size={20} /></button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        <button onClick={handleAddCashOutItem} className="w-full py-3 border-2 border-dashed border-zinc-300 rounded-xl text-zinc-400 font-bold hover:border-indigo-500 hover:text-indigo-500 flex items-center justify-center gap-2">
-                                            <PlusCircle size={18} /> Tambah Jajanan Lain
-                                        </button>
-                                    </div>
-
-                                    <div className="pt-6 border-t border-zinc-100">
-                                        <div className="flex justify-between items-end mb-4">
-                                            <span className="text-sm text-zinc-500 font-bold">Total Pengeluaran</span>
-                                            <span className="text-2xl font-black text-zinc-900">Rp {calculateTotalExpense().toLocaleString()}</span>
-                                        </div>
-                                        <button disabled={isSubmitting} onClick={() => { setPinAction('cashout'); setIsPinModalOpen(true); }} className="w-full py-4 bg-zinc-900 text-white font-bold rounded-2xl shadow-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
-                                            {isSubmitting ? 'Memproses...' : 'PROSES CASH OUT'}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
 
                 {/* PAGE: STAFF */}
                 {activePage === 'staff' && (
@@ -673,7 +595,7 @@ export default function WuregStore() {
                                                         <button onClick={() => setModalType('topup_balance')} className="flex-1 flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 py-3 rounded-2xl text-xs font-bold transition-all">
                                                             <Plus size={16} /> Top Up
                                                         </button>
-                                                        <button onClick={() => setActivePage('cashout')} className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 py-3 rounded-2xl text-xs font-bold transition-all backdrop-blur-md">
+                                                        <button onClick={() => setIsCashOutModalOpen(true)} className="flex-1 flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 py-3 rounded-2xl text-xs font-bold transition-all backdrop-blur-md">
                                                             <Receipt size={16} /> Cash Out
                                                         </button>
                                                     </div>
@@ -1010,7 +932,7 @@ export default function WuregStore() {
             {modalType === 'topup_balance' && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in zoom-in-95">
                     <div className="bg-white w-full max-w-sm rounded-[32px] p-8 shadow-2xl relative">
-                        <button onClick={() => setModalType(null)} className="absolute top-6 right-6 p-2 bg-zinc-100 rounded-full text-zinc-500"><X size={18} /></button>
+                        <button onClick={() => setModalType(null)} className="absolute top-6 right-6 p-2 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200 transition-colors"><X size={18} /></button>
                         <div className="text-center mb-6">
                             <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4"><TrendingUp size={32} /></div>
                             <h3 className="text-xl font-bold">Top Up Saldo Admin</h3>
@@ -1018,26 +940,80 @@ export default function WuregStore() {
                         </div>
                         <div className="space-y-4">
                             <KodesetInput type="number" placeholder="Nominal Saldo (Rp)" value={topUpAmount || ''} onChange={(e: any) => setTopUpAmount(e.target.value)} icon={Wallet} />
-                            <button onClick={() => { setPinAction('topup'); setIsPinModalOpen(true); }} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition-all">Lanjut Verifikasi PIN</button>
+                            <button disabled={isSubmitting} onClick={processFinalTopUp} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-2xl shadow-lg hover:bg-indigo-700 transition-all disabled:opacity-50">
+                                {isSubmitting ? 'Memproses...' : 'Konfirmasi Top Up'}
+                            </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* PIN VERIFICATION MODAL */}
-            {isPinModalOpen && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in zoom-in-95">
-                    <div className="bg-white w-full max-w-xs p-6 rounded-[24px] shadow-2xl text-center">
-                        <div className="w-12 h-12 bg-zinc-100 rounded-full flex items-center justify-center mx-auto mb-4 text-zinc-900"><Lock size={20} /></div>
-                        <h3 className="font-bold text-lg mb-1">Verifikasi PIN</h3>
-                        <p className="text-xs text-zinc-400 mb-4">Masukkan PIN untuk mengonfirmasi {pinAction === 'topup' ? 'Top Up' : 'Cash Out'}.</p>
-                        <form onSubmit={handlePinSubmit} className="space-y-3">
-                            <input type="password" autoFocus className="w-full text-center text-xl tracking-[0.3em] font-bold p-3 bg-zinc-50 rounded-xl border border-zinc-200 focus:border-zinc-900 outline-none" placeholder="••••" value={cashOutPinInput} onChange={e => setCashOutPinInput(e.target.value)} />
-                            <div className="flex gap-2">
-                                <button type="button" onClick={() => { setIsPinModalOpen(false); setCashOutPinInput(''); }} className="flex-1 py-3 bg-zinc-100 text-zinc-600 font-bold rounded-xl text-xs">BATAL</button>
-                                <button type="submit" disabled={isSubmitting} className="flex-1 py-3 bg-zinc-900 text-white font-bold rounded-xl text-xs">{isSubmitting ? '...' : 'KONFIRMASI'}</button>
+            {/* CASH OUT MODAL (POP UP) */}
+            {isCashOutModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in zoom-in-95">
+                    <div className="bg-white w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-[32px] p-6 md:p-8 shadow-2xl relative">
+                        <button onClick={() => setIsCashOutModalOpen(false)} className="absolute top-6 right-6 p-2 bg-zinc-100 hover:bg-zinc-200 rounded-full text-zinc-500 transition-colors">
+                            <X size={18} />
+                        </button>
+
+                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-zinc-100 pr-10">
+                            <div>
+                                <h3 className="font-bold text-xl text-zinc-900">Kasir Pengeluaran (Cash Out)</h3>
+                                <p className="text-xs text-zinc-400">Saldo saat ini: <span className="font-bold text-emerald-600">Rp {shopBalance.toLocaleString()}</span></p>
                             </div>
-                        </form>
+                            <button onClick={() => setCashOutForm({ tag: 'Anwaha Mart', items: [{ name: '', price: 0, qty: 1 }] })} title="Reset Form" className="p-2 bg-zinc-50 rounded-xl hover:bg-zinc-100 text-zinc-600">
+                                <RefreshCw size={18} />
+                            </button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Pilih Tag</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
+                                    {['Anwaha Mart', 'Syirkah', 'Warung', 'Idaroh'].map(tag => (
+                                        <button key={tag} type="button" onClick={() => setCashOutForm({ ...cashOutForm, tag })} className={`py-3 rounded-xl font-bold text-sm border-2 transition-all ${cashOutForm.tag === tag ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-zinc-100 bg-zinc-50 text-zinc-400'}`}>
+                                            {tag}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="text-xs font-bold text-zinc-500 uppercase ml-1">Daftar Belanja</label>
+                                {cashOutForm.items.map((item, idx) => (
+                                    <div key={idx} className="flex gap-2 items-start">
+                                        <div className="flex-1 space-y-2">
+                                            <input placeholder="Nama Jajanan / Barang" className="w-full p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-bold outline-none focus:border-indigo-500" value={item.name} onChange={e => handleCashOutChange(idx, 'name', e.target.value)} />
+                                            <div className="flex gap-2">
+                                                <input type="number" placeholder="Harga" className="flex-1 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500" value={item.price || ''} onChange={e => handleCashOutChange(idx, 'price', e.target.value)} />
+                                                <input type="number" placeholder="Qty" className="w-20 p-3 bg-zinc-50 rounded-xl border border-zinc-200 text-sm font-mono outline-none focus:border-indigo-500 text-center" value={item.qty} onChange={e => handleCashOutChange(idx, 'qty', e.target.value)} />
+                                            </div>
+                                        </div>
+                                        {cashOutForm.items.length > 1 && (
+                                            <button type="button" onClick={() => handleRemoveCashOutItem(idx)} className="p-3 mt-1 bg-red-50 text-red-500 rounded-xl hover:bg-red-100"><MinusCircle size={20} /></button>
+                                        )}
+                                    </div>
+                                ))}
+                                <button type="button" onClick={handleAddCashOutItem} className="w-full py-3 border-2 border-dashed border-zinc-300 rounded-xl text-zinc-400 font-bold hover:border-indigo-500 hover:text-indigo-500 flex items-center justify-center gap-2">
+                                    <PlusCircle size={18} /> Tambah Jajanan Lain
+                                </button>
+                            </div>
+
+                            <div className="pt-6 border-t border-zinc-100">
+                                <div className="flex justify-between items-end mb-4">
+                                    <span className="text-sm text-zinc-500 font-bold">Total Pengeluaran</span>
+                                    <span className="text-2xl font-black text-zinc-900">Rp {calculateTotalExpense().toLocaleString()}</span>
+                                </div>
+                                <div className="flex gap-3">
+                                    <button type="button" onClick={() => setIsCashOutModalOpen(false)} className="flex-1 py-4 bg-zinc-100 text-zinc-700 font-bold rounded-2xl hover:bg-zinc-200 transition-all">
+                                        Batal
+                                    </button>
+                                    <button type="button" disabled={isSubmitting} onClick={processFinalCashOut} className="flex-1 py-4 bg-zinc-900 text-white font-bold rounded-2xl shadow-lg hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                                        {isSubmitting ? 'Memproses...' : 'PROSES CASH OUT'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
